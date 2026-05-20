@@ -16,7 +16,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Fazendo a chamada POST para o seu backend Spring Boot
+      // Fazendo a chamada POST para o seu backend Spring Boot no Render
       const response = await api.post('/auth/login', {
         email: email,
         senha: senha
@@ -25,12 +25,17 @@ export default function Login() {
       // Salvando os dados do usuário no armazenamento do navegador (Local Storage)
       localStorage.setItem('usuario', JSON.stringify(response.data));
       
-      // Redireciona o dono do estacionamento para o Dashboard recém-criado
-      navigate('/dashboard'); 
+      // O Guarda de Trânsito: Redireciona baseado no tipo de usuário salvo no banco
+      if (response.data.role === 'ADMIN' || response.data.role === 'OPERADOR') {
+        navigate('/painel-operador'); 
+      } else {
+        // Se for 'USER' (ou qualquer outra coisa), vai para a tela de cliente
+        navigate('/painel-motorista'); 
+      }
 
     } catch (error) {
       console.error("Erro ao fazer login:", error);
-      // Se a API retornar erro (ex: 401 ou 403), mostramos essa mensagem
+      // Se a API retornar erro 403 (Credenciais Inválidas) ou erro de rede
       setErro('Credenciais inválidas ou erro no servidor. Verifique seu e-mail e senha.');
     } finally {
       setLoading(false);
@@ -38,14 +43,14 @@ export default function Login() {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f4f6f8', fontFamily: 'sans-serif' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f8fafc', fontFamily: 'sans-serif' }}>
       <div style={{ backgroundColor: 'white', padding: '2.5rem', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' }}>
         
         <h2 style={{ textAlign: 'center', marginBottom: '1.5rem', color: '#1e293b' }}>
           SmartPark 🚗
         </h2>
         <p style={{ textAlign: 'center', color: '#64748b', marginBottom: '2rem' }}>
-          Acesse o painel do seu estacionamento
+          Acesse sua conta para continuar
         </p>
         
         {/* Exibição da mensagem de erro */}
@@ -99,6 +104,11 @@ export default function Login() {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+
+        <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.9rem', color: '#64748b' }}>
+          Ainda não tem conta? <span style={{ color: '#3b82f6', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => navigate('/registro')}>Cadastre-se</span>
+        </p>
+
       </div>
     </div>
   );
