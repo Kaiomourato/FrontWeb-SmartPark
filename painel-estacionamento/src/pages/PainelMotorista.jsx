@@ -2,14 +2,33 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
+// Ajuste o caminho se necessário
+import './style/PainelMotorista.css'; 
+
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css'; 
+import L from 'leaflet';
+import iconUrl from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+const defaultIcon = L.icon({
+  iconUrl,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+
 export default function PainelMotorista() {
   const [usuario, setUsuario] = useState(null);
+  const [abaAtiva, setAbaAtiva] = useState('estadias');
+
   const [veiculos, setVeiculos] = useState([]);
   const [estadiaAtiva, setEstadiaAtiva] = useState(null);
+  const [estacionamentos, setEstacionamentos] = useState([]);
+  
   const [loadingVeiculos, setLoadingVeiculos] = useState(true);
   const [loadingEstadia, setLoadingEstadia] = useState(true);
-  
-  // Estados para o formulário
+
   const [placa, setPlaca] = useState('');
   const [modelo, setModelo] = useState('');
   const [cor, setCor] = useState('');
@@ -24,16 +43,18 @@ export default function PainelMotorista() {
       navigate('/login');
       return;
     }
-    
-    const userObj = JSON.parse(userSalvo);
-    setUsuario(userObj);
+    setUsuario(JSON.parse(userSalvo));
 
-    async function buscarVeiculos() {
+    async function buscarDadosIniciais() {
       try {
-        const response = await api.get('/veiculos/meus'); 
-        setVeiculos(response.data);
+        const [veiculosResp, estacResp] = await Promise.all([
+          api.get('/veiculos/meus'),
+          api.get('/estacionamentos') 
+        ]);
+        setVeiculos(veiculosResp.data);
+        setEstacionamentos(estacResp.data);
       } catch (error) {
-        console.error("Erro ao buscar veículos:", error);
+        console.error("Erro ao buscar dados:", error);
       } finally {
         setLoadingVeiculos(false);
       }
@@ -44,13 +65,14 @@ export default function PainelMotorista() {
         const response = await api.get('/estadias/minha-ativa');
         setEstadiaAtiva(response.data); 
       } catch (error) {
+        if (error.code === 'ERR_CANCELED' || (error.message && error.message.includes('aborted'))) return;
         console.error("Erro ao buscar estadia ativa:", error);
       } finally {
         setLoadingEstadia(false);
       }
     }
 
-    buscarVeiculos();
+    buscarDadosIniciais();
     buscarEstadiaAtiva();
 
     const interval = setInterval(() => {
@@ -65,14 +87,15 @@ export default function PainelMotorista() {
     try {
       const novoVeiculo = {
         placa: placa.toUpperCase(),
-        modelo: modelo,
-        cor: cor, // Corrigido de 'color' para 'cor'
-        tipo: tipo,
+        modelo,
+        cor,
+        tipo,
         ativo: true
       };
 
-      const response = await api.post('/veiculos', novoVeiculo);
-      setVeiculos([...veiculos, response.data]);
+      await api.post('/veiculos', novoVeiculo);
+      const response = await api.get('/veiculos/meus'); 
+      setVeiculos(response.data);
       setPlaca(''); setModelo(''); setCor(''); setTipo('CARRO');
       setMostrarForm(false);
       alert('Veículo cadastrado com sucesso!');
@@ -92,6 +115,10 @@ export default function PainelMotorista() {
     }
   };
 
+  const handleReservarVaga = (estacionamentoNome) => {
+    alert(`A reserva no ${estacionamentoNome} estará disponível em breve!`);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('usuario');
     navigate('/login');
@@ -99,98 +126,200 @@ export default function PainelMotorista() {
 
   if (!usuario) return <p style={{ textAlign: 'center', marginTop: '2rem' }}>Carregando...</p>;
 
+  const centerPosition = [-14.235, -51.925]; 
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'sans-serif' }}>
+    <div className="painel-container">
       
-      <header style={{ backgroundColor: '#2563eb', color: 'white', padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* MENU LATERAL */}
+      <aside className="sidebar">
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.2rem' }}>SmartPark Motorista 🚘</h1>
-          <span style={{ fontSize: '0.8rem' }}>{usuario.email}</span>
-        </div>
-        <button onClick={handleLogout} style={{ padding: '0.5rem 1rem', background: 'none', border: '1px solid white', color: 'white', borderRadius: '4px', cursor: 'pointer' }}>Sair</button>
-      </header>
-
-      <main style={{ padding: '1.5rem', maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        
-        {/* Acompanhamento de Estadia Atual em Tempo Real */}
-        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', borderLeft: estadiaAtiva ? '6px solid #10b981' : '6px solid #64748b' }}>
-          <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.2rem', color: '#1e293b' }}>⏱️ Estadia em Andamento</h2>
-          
-          {loadingEstadia ? (
-            <p>Verificando pátio...</p>
-          ) : estadiaAtiva ? (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#10b981', display: 'block', marginBottom: '0.25rem' }}>
-                  R$ {estadiaAtiva.valor ? estadiaAtiva.valor.toFixed(2) : '0.00'}
-                </span>
-                <strong style={{ fontSize: '1.1rem' }}>{estadiaAtiva.veiculo?.placa}</strong>
-                <div style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '0.2rem' }}>
-                  📍 {estadiaAtiva.vaga?.numero ? `Vaga ${estadiaAtiva.vaga.numero}` : 'Vaga Alocada'} <br/>
-                  🕒 Entrada: {new Date(estadiaAtiva.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-              <div style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: '500' }}>
-                🚗 Seu veículo está no pátio
-              </div>
-            </div>
-          ) : (
-            <div style={{ color: '#64748b', fontSize: '0.95rem' }}>
-              <p style={{ margin: 0 }}>Nenhum veículo seu está estacionado no momento.</p>
-              <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>Quando você entrar em um pátio SmartPark, o cronômetro aparecerá aqui automaticamente.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Seção de Veículos */}
-        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Meus Veículos Cadastrados</h2>
-            <button 
-              onClick={() => setMostrarForm(!mostrarForm)}
-              style={{ backgroundColor: mostrarForm ? '#64748b' : '#10b981', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              {mostrarForm ? 'Fechar' : '+ Novo'}
-            </button>
+          <div className="sidebar-header">
+            <span>SmartPark 🚘</span>
+            <button className="btn-sair-mobile" onClick={handleLogout}>Sair</button>
           </div>
-
-          {mostrarForm && (
-            <form onSubmit={handleAdicionarVeiculo} style={{ display: 'grid', gap: '1rem', backgroundColor: '#f1f5f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <input placeholder="PLACA" value={placa} onChange={e => setPlaca(e.target.value)} required style={{ flex: 1, padding: '0.6rem', borderRadius: '4px', border: '1px solid #cbd5e1', textTransform: 'uppercase' }} />
-                <select value={tipo} onChange={e => setTipo(e.target.value)} style={{ flex: 1, padding: '0.6rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
-                  <option value="CARRO">🚗 Carro</option>
-                  <option value="MOTO">MOTO</option>
-                  <option value="CAMINHONETE">🛻 Caminhonete</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <input placeholder="Modelo" value={modelo} onChange={e => setModelo(e.target.value)} required style={{ flex: 2, padding: '0.6rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                <input placeholder="Cor" value={cor} onChange={e => setCor(e.target.value)} required style={{ flex: 1, padding: '0.6rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-              </div>
-              <button type="submit" style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '0.8rem', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>Salvar Veículo</button>
-            </form>
-          )}
-
-          {loadingVeiculos ? (
-            <p>Carregando veículos...</p>
-          ) : veiculos.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#64748b' }}>Nenhum veículo cadastrado.</p>
-          ) : (
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              {veiculos.map(v => (
-                <div key={v.id} style={{ border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: '0.7rem', color: '#3b82f6', fontWeight: 'bold', display: 'block' }}>{v.tipo}</span>
-                    <strong style={{ fontSize: '1.1rem' }}>{v.placa}</strong>
-                    <div style={{ fontSize: '0.9rem', color: '#64748b' }}>{v.modelo} • {v.cor}</div>
-                  </div>
-                  <button onClick={() => handleRemoverVeiculo(v.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem' }}>Excluir</button>
-                </div>
-              ))}
-            </div>
-          )}
+          
+          <nav className="sidebar-nav">
+            <button className={`menu-btn ${abaAtiva === 'estadias' ? 'active' : ''}`} onClick={() => setAbaAtiva('estadias')}>
+              ⏱️ <span>Minhas Estadias</span>
+            </button>
+            <button className={`menu-btn ${abaAtiva === 'mapa' ? 'active' : ''}`} onClick={() => setAbaAtiva('mapa')}>
+              📍 <span>Buscar Vagas</span>
+            </button>
+            <button className={`menu-btn ${abaAtiva === 'veiculos' ? 'active' : ''}`} onClick={() => setAbaAtiva('veiculos')}>
+              🚗 <span>Meus Veículos</span>
+            </button>
+          </nav>
         </div>
+
+        <div className="sidebar-footer">
+          <p className="sidebar-footer-text">Logado como: <br/><strong>{usuario.email}</strong></p>
+          <button className="btn-sair" onClick={handleLogout}>Sair do App</button>
+        </div>
+      </aside>
+
+      {/* ÁREA DE CONTEÚDO PRINCIPAL */}
+      <main className="main-content">
+        
+        {/* ABA: ESTADIAS */}
+        {abaAtiva === 'estadias' && (
+          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+            <h1 className="page-title">Status da Estadia</h1>
+            
+            {loadingEstadia ? (
+              <p>Buscando informações do pátio...</p>
+            ) : estadiaAtiva ? (
+              <div className="card ticket-container">
+                <div className="ticket-header">
+                  <span className="ticket-header-label">Estacionamento Atual</span>
+                  <h2 className="ticket-header-title">
+                    {/* Alteração: Lendo o nome do estacionamento através da Vaga */}
+                    {estadiaAtiva.vaga?.estacionamento?.nome || 'Pátio SmartPark'}
+                  </h2>
+                </div>
+
+                <div className="ticket-body">
+                  <div className="ticket-price-box">
+                    <span className="ticket-price-label">Valor Acumulado</span>
+                    <span className="ticket-price-value">
+                      R$ {estadiaAtiva.valor ? estadiaAtiva.valor.toFixed(2) : '0.00'}
+                    </span>
+                  </div>
+
+                  <div className="ticket-grid">
+                    <div className="ticket-info-group">
+                      <span className="ticket-info-label">Veículo</span>
+                      <strong className="ticket-info-value">{estadiaAtiva.veiculo?.placa}</strong>
+                      <span className="ticket-info-sub">{estadiaAtiva.veiculo?.modelo}</span>
+                    </div>
+                    <div className="ticket-info-group ticket-info-right">
+                      <span className="ticket-info-label">Localização</span>
+                      <strong className="ticket-info-value">
+                        {/* Alteração: Lendo 'codigo' ao invés de 'numero' */}
+                        {estadiaAtiva.vaga?.codigo ? `Vaga ${estadiaAtiva.vaga.codigo}` : `Vaga ID: ${estadiaAtiva.vaga?.id}`}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="ticket-time-box">
+                    <span className="ticket-time-label">🕒 Hora de Entrada:</span>
+                    <strong className="ticket-time-value">
+                      {estadiaAtiva.entrada ? new Date(estadiaAtiva.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    </strong>
+                  </div>
+
+                  <div className="ticket-security-badge">
+                    <span>🛡️</span>
+                    <span>Sua estadia está sendo monitorada e protegida pela administração.</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="card estadia-status">
+                <h2 className="card-title">Estadia em Andamento</h2>
+                <div className="estadia-vazia">
+                  <p>Você não possui estadias ativas no momento.</p>
+                  <p className="subtext">Assim que o operador registrar a entrada da sua placa no pátio, as informações de cobrança aparecerão aqui automaticamente.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ABA: MAPA */}
+        {abaAtiva === 'mapa' && (
+          <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            <h1 className="page-title">Encontrar Estacionamentos</h1>
+            
+            <div className="mapa-container">
+              <MapContainer center={centerPosition} zoom={4} style={{ height: '100%', width: '100%' }}>
+                <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                {estacionamentos.map(est => (
+                  est.latitude && est.longitude && (
+                    <Marker key={est.id} position={[est.latitude, est.longitude]} icon={defaultIcon}>
+                      <Popup>
+                        <div style={{ textAlign: 'center', padding: '0.5rem' }}>
+                          <strong style={{ fontSize: '1.1rem', color: '#1e293b', display: 'block', marginBottom: '0.5rem' }}>{est.nome}</strong>
+                          <p style={{ margin: '0 0 1rem 0', color: '#64748b', fontSize: '0.85rem' }}>{est.endereco}</p>
+                          <button className="btn-reservar" onClick={() => handleReservarVaga(est.nome)}>
+                            Reservar Vaga
+                          </button>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  )
+                ))}
+              </MapContainer>
+            </div>
+          </div>
+        )}
+
+        {/* ABA: VEÍCULOS */}
+        {abaAtiva === 'veiculos' && (
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <h1 className="page-title">Meus Veículos</h1>
+            
+            <div className="card">
+              <div className="veiculos-header">
+                <h2 className="card-title" style={{ margin: 0 }}>Frota Cadastrada</h2>
+                <button className={`btn-toggle ${mostrarForm ? 'fechar' : ''}`} onClick={() => setMostrarForm(!mostrarForm)}>
+                  {mostrarForm ? 'Cancelar' : '+ Adicionar'}
+                </button>
+              </div>
+
+              {mostrarForm && (
+                <form className="veiculo-form" onSubmit={handleAdicionarVeiculo}>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Placa</label>
+                      <input className="form-control placa" placeholder="ABC1234" value={placa} onChange={e => setPlaca(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Tipo</label>
+                      <select className="form-control" value={tipo} onChange={e => setTipo(e.target.value)}>
+                        <option value="CARRO">🚗 Carro</option>
+                        <option value="MOTO">🏍️ Moto</option>
+                        <option value="CAMINHONETE">🛻 Caminhonete</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group large">
+                      <label className="form-label">Modelo</label>
+                      <input className="form-control" placeholder="Ex: Honda Civic" value={modelo} onChange={e => setModelo(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Cor</label>
+                      <input className="form-control" placeholder="Ex: Prata" value={cor} onChange={e => setCor(e.target.value)} required />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn-salvar">Salvar Veículo</button>
+                </form>
+              )}
+
+              {loadingVeiculos ? (
+                <p>Carregando veículos...</p>
+              ) : veiculos.length === 0 ? (
+                <div className="veiculo-vazio">
+                  <p>Nenhum veículo cadastrado ainda.</p>
+                </div>
+              ) : (
+                <div className="veiculo-lista">
+                  {veiculos.map(v => (
+                    <div key={v.id} className="veiculo-item">
+                      <div>
+                        <span className="veiculo-tipo">{v.tipo}</span>
+                        <strong className="veiculo-placa-texto">{v.placa}</strong>
+                        <div className="veiculo-detalhe-texto">{v.modelo} • {v.cor}</div>
+                      </div>
+                      <button className="btn-remover" onClick={() => handleRemoverVeiculo(v.id)}>Remover</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
