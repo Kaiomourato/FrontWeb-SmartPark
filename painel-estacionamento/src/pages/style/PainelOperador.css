@@ -1,129 +1,112 @@
-/* src/style/PainelOperador.css */
+/* =========================================================
+   ESTILOS DO PAINEL DO OPERADOR (CONTROLE E CONFIGURAÇÕES)
+   ========================================================= */
 
 .operador-container {
   display: flex;
   min-height: 100vh;
-  font-family: sans-serif;
-  background-color: #f4f6f8;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f8fafc;
 }
 
 .main-content {
   flex: 1;
-  padding: 2rem;
+  padding: 2.5rem;
   overflow-y: auto;
 }
 
 .page-title {
   color: #1e293b;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
   font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
 }
 
+/* --- Cartões (Cards) --- */
 .card {
-  background-color: white;
+  background-color: #ffffff;
   padding: 2rem;
   border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  margin-bottom: 2rem;
+  border: 1px solid #f1f5f9;
 }
 
 .card-title {
   margin: 0 0 1.5rem 0;
-  font-size: 1.2rem;
-  color: #1e293b;
+  font-size: 1.25rem;
+  color: #0f172a;
+  font-weight: 600;
+  border-bottom: 2px solid #f1f5f9;
+  padding-bottom: 0.75rem;
 }
 
-/* --- Formulário de Entrada --- */
+/* --- Formulários --- */
 .entrada-form {
   display: flex;
-  gap: 1rem;
+  gap: 1.5rem;
   align-items: flex-end;
+  flex-wrap: wrap;
 }
 
 .form-group {
   flex: 1;
+  min-width: 200px;
 }
 
 .form-label {
   display: block;
   font-size: 0.9rem;
   color: #475569;
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: 0.5rem;
 }
 
 .form-control {
   width: 100%;
-  padding: 0.75rem;
-  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
   border: 1px solid #cbd5e1;
   font-size: 1rem;
+  color: #1e293b;
   box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .form-control.placa {
   text-transform: uppercase;
-  letter-spacing: 1px;
+  font-weight: bold;
+  letter-spacing: 2px;
 }
 
+/* --- Botões --- */
 .btn-liberar {
   padding: 0.75rem 1.5rem;
   background-color: #3b82f6;
   color: white;
   border: none;
-  border-radius: 4px;
-  font-weight: bold;
+  border-radius: 6px;
+  font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
   height: 47px;
   white-space: nowrap;
+  transition: background-color 0.2s, transform 0.1s;
 }
 
 .btn-liberar:hover {
   background-color: #2563eb;
 }
 
-/* --- Tabela de Estadias --- */
-.table-wrapper {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.estadias-table {
-  width: 100%;
-  min-width: 600px;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.estadias-table th {
-  padding: 1rem 0.5rem;
-  border-bottom: 2px solid #e2e8f0;
-  color: #475569;
-  font-size: 0.9rem;
-}
-
-.estadias-table td {
-  padding: 1rem 0.5rem;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: middle;
-}
-
-.td-placa {
-  font-weight: bold;
-  letter-spacing: 1px;
-  font-size: 1.1rem;
-  color: #0f172a;
-}
-
-.td-vaga {
-  font-size: 0.95rem;
-  color: #334155;
-}
-
-.td-hora {
-  color: #64748b;
-  font-size: 0.95rem;
+.btn-liberar:active {
+  transform: scale(0.98);
 }
 
 .btn-cobrar {
@@ -131,31 +114,86 @@
   background-color: #10b981;
   color: white;
   border: none;
-  border-radius: 4px;
-  font-weight: bold;
+  border-radius: 6px;
+  font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
 .btn-cobrar:hover {
   background-color: #059669;
 }
 
-.empty-state {
-  color: #64748b;
-  font-size: 0.95rem;
-  text-align: center;
-  padding: 2rem 0;
+/* --- Tabelas de Dados --- */
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
-/* =========================================
-   MEDIA QUERIES (Responsividade) 
-   ========================================= */
+.estadias-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.estadias-table th {
+  padding: 1rem;
+  background-color: #f8fafc;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.estadias-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.estadias-table tr:last-child td {
+  border-bottom: none;
+}
+
+.td-placa {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #0f172a;
+  font-size: 1.1rem;
+}
+
+.td-vaga {
+  color: #334155;
+  font-weight: 500;
+}
+
+.td-hora {
+  color: #64748b;
+  font-family: monospace;
+  font-size: 1rem;
+}
+
+.empty-state {
+  color: #64748b;
+  text-align: center;
+  padding: 3rem 1rem;
+  font-size: 1.1rem;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  border: 2px dashed #cbd5e1;
+}
+
+/* --- Responsividade --- */
 @media (max-width: 768px) {
-  .operador-container { flex-direction: column; }
-  .main-content { padding: 1rem; }
-  .page-title { font-size: 1.5rem; }
-  .card { padding: 1.25rem; }
+  .operador-container {
+    flex-direction: column;
+  }
+  
+  .main-content {
+    padding: 1.5rem 1rem;
+  }
   
   .entrada-form {
     flex-direction: column;
