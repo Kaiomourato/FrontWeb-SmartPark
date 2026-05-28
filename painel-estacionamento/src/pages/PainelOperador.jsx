@@ -34,11 +34,11 @@ export default function PainelOperador() {
   const carregarDashboard = async () => {
     try {
       // 1. Busca os dados do estacionamento primeiro
-      const estacResp = await api.get('/estacionamentos');
+      const estacResp = await api.get('/estacionamentos/meu');
       let estacId = null;
 
       if (estacResp.data.length > 0) {
-        const estac = estacResp.data[0];
+        const estac = estacResp.data;
         setEstacionamento(estac);
         setNovoNome(estac.nome);
         setNovoValorHora(estac.valorHora);
