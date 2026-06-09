@@ -7,6 +7,7 @@ export default function Sidebar({ aba, setAba, itens, titulo, subtitulo, open, o
   const toast = useToast();
   const navigate = useNavigate();
 
+  
   const handleLogout = () => {
     logout();
     toast.info('Sessão encerrada', 'Até logo!');
