@@ -2,20 +2,29 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: 'https://estacionamento-rotativo-l65y.onrender.com',
+  timeout: 15000,
 });
 
-// Interceptor para adicionar o token em cada requisição
 api.interceptors.request.use((config) => {
-  const user = JSON.parse(localStorage.getItem('usuario'));
-  
-  // Se existir um token salvo para o usuário, adiciona no cabeçalho Authorization
-  if (user && user.token) {
-    config.headers.Authorization = `Bearer ${user.token}`;
+  const raw = localStorage.getItem('sp_user');
+  if (raw) {
+    try {
+      const user = JSON.parse(raw);
+      if (user?.token) config.headers.Authorization = `Bearer ${user.token}`;
+    } catch {}
   }
-  
   return config;
-}, (error) => {
-  return Promise.reject(error);
 });
+
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('sp_user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(err);
+  }
+);
 
 export default api;
