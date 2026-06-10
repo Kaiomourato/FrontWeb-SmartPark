@@ -11,18 +11,33 @@ import PainelLayout from '../components/PainelLayout';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
-const mkVerde = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
-});
-const mkVermelho = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
-});
 
-function RecenterMap({ pos }) {
+function criarPin(cor) {
+  return L.divIcon({
+    className: 'map-pin',
+    html: `<span class="map-pin-dot" style="background:${cor}"></span>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    popupAnchor: [0, -10],
+  });
+}
+const mkVerde = criarPin('#10b981');
+const mkVermelho = criarPin('#ef4444');
+
+function RecenterMap({ pos, zoom = 14 }) {
   const map = useMap();
-  useEffect(() => { if (pos) map.setView(pos, 14); }, [pos]);
+  useEffect(() => { if (pos) map.flyTo(pos, zoom); }, [pos, zoom]);
+  return null;
+}
+
+// Corrige o tamanho do mapa quando ele sai de display:none (troca de aba)
+function MapResize({ ativo }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!ativo) return;
+    const t = setTimeout(() => map.invalidateSize(), 150);
+    return () => clearTimeout(t);
+  }, [ativo, map]);
   return null;
 }
 
@@ -39,10 +54,24 @@ const NAV = [{
 const tiposIcon = { CARRO: '🚗', MOTO: '🏍️', CAMINHONETE: '🛻' };
 
 /* ── Modal reserva ── */
-function ModalReserva({ est, vagas, onConfirm, onClose }) {
+function ModalReserva({ est, vagas, veiculos, onConfirm, onClose, onIrParaVeiculos }) {
+  const [veiculoId, setVeiculoId] = useState('');
   const [vagaId, setVagaId] = useState('');
-  const livres = vagas.filter(v => !v.ocupada && v.ativo !== false);
-  useEffect(() => { if (livres.length > 0) setVagaId(String(livres[0].id)); }, [vagas]);
+  const [previsaoChegada, setPrevisaoChegada] = useState('');
+
+  useEffect(() => {
+    if (veiculos.length > 0) setVeiculoId(String(veiculos[0].id));
+  }, [veiculos]);
+
+  const semVeiculos = veiculos.length === 0;
+  const veiculoSel = veiculos.find(v => String(v.id) === String(veiculoId));
+  const todasLivres = vagas.filter(v => !v.ocupada && v.ativo !== false);
+  const compativeis = todasLivres.filter(v => !v.tipoVeiculo || !veiculoSel || v.tipoVeiculo === veiculoSel.tipo);
+
+  useEffect(() => {
+    setVagaId(compativeis.length > 0 ? String(compativeis[0].id) : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vagas, veiculoId]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -56,29 +85,64 @@ function ModalReserva({ est, vagas, onConfirm, onClose }) {
             <div style={{ fontWeight: 600, marginBottom: 4 }}>{est.nome}</div>
             <div style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>📍 {est.endereco}</div>
             <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <span className="badge badge-green">{livres.length} vagas livres</span>
+              <span className="badge badge-green">{todasLivres.length} vagas livres</span>
               <span style={{ color: 'var(--green)', fontWeight: 700 }}>R$ {est.valorHora?.toFixed(2)}/h</span>
             </div>
           </div>
-          {livres.length === 0 ? (
-            <p style={{ textAlign: 'center', color: 'var(--red)', padding: '12px 0' }}>Sem vagas disponíveis no momento.</p>
+
+          {semVeiculos ? (
+            <div className="empty-state" style={{ padding: '12px 0' }}>
+              <div className="empty-state-icon">🚗</div>
+              <h3>Nenhum veículo cadastrado</h3>
+              <p>Cadastre um veículo para reservar uma vaga.</p>
+              <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={onIrParaVeiculos}>
+                + Adicionar veículo
+              </button>
+            </div>
           ) : (
-            <form id="form-reserva" onSubmit={e => { e.preventDefault(); onConfirm(est, vagaId); }}>
+            <form id="form-reserva" onSubmit={e => { e.preventDefault(); onConfirm(est, vagaId, veiculoId, previsaoChegada); }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="form-group">
-                <label className="form-label">Selecionar vaga</label>
-                <select className="form-control" value={vagaId} onChange={e => setVagaId(e.target.value)}>
-                  {livres.map(v => <option key={v.id} value={v.id}>Vaga {v.codigo}</option>)}
+                <label className="form-label">Veículo</label>
+                <select className="form-control" value={veiculoId} onChange={e => setVeiculoId(e.target.value)}>
+                  {veiculos.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {tiposIcon[v.tipo] || '🚗'} {v.placa} · {v.modelo}
+                    </option>
+                  ))}
                 </select>
+              </div>
+
+              {compativeis.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--red)', padding: '4px 0', fontSize: '.85rem' }}>
+                  Nenhuma vaga livre compatível com este veículo no momento.
+                </p>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">Selecionar vaga</label>
+                  <select className="form-control" value={vagaId} onChange={e => setVagaId(e.target.value)}>
+                    {compativeis.map(v => <option key={v.id} value={v.id}>Vaga {v.codigo}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">Previsão de chegada (opcional)</label>
+                <input type="datetime-local" className="form-control"
+                  value={previsaoChegada} onChange={e => setPrevisaoChegada(e.target.value)} />
               </div>
             </form>
           )}
+
           <p style={{ fontSize: '.8rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
             Após confirmar, você receberá um código. Apresente ao operador ao chegar.
           </p>
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          {livres.length > 0 && <button className="btn btn-primary" form="form-reserva" type="submit">Confirmar reserva</button>}
+          {!semVeiculos && compativeis.length > 0 && (
+            <button className="btn btn-primary" form="form-reserva" type="submit">Confirmar reserva</button>
+          )}
         </div>
       </div>
     </div>
@@ -99,14 +163,7 @@ function ModalCodigo({ reserva, onClose }) {
             Mostre este código ao operador ao chegar em:
           </p>
           <p style={{ fontWeight: 600 }}>{reserva.estacionamentoNome}</p>
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: '2.4rem', fontWeight: 700,
-            letterSpacing: '8px', color: 'var(--blue-light)', padding: '20px 16px',
-            background: 'var(--bg-surface)', borderRadius: 12, border: '2px dashed var(--blue)',
-            wordBreak: 'break-all',
-          }}>
-            {reserva.codigo}
-          </div>
+          <div className="codigo-display">{reserva.codigo}</div>
           <div style={{ background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.2)', borderRadius: 8, padding: '12px 16px', textAlign: 'left' }}>
             <p style={{ fontSize: '.82rem', color: 'var(--green)', lineHeight: 1.65 }}>
               ✓ Reserva confirmada para a <strong>Vaga {reserva.vagaCodigo}</strong><br />
@@ -133,6 +190,8 @@ export default function PainelMotorista() {
   const [historicoEstadias, setHistoricoEstadias] = useState([]);
   const [vagasEstac, setVagasEstac] = useState([]);
   const [loadingInit, setLoadingInit] = useState(true);
+  const [filtroMapa, setFiltroMapa] = useState('');
+  const [selecionado, setSelecionado] = useState(null);
   const [modalReserva, setModalReserva] = useState(null);
   const [modalCodigo, setModalCodigo] = useState(null);
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -186,20 +245,35 @@ export default function PainelMotorista() {
     setModalReserva(est);
   };
 
-  const confirmarReserva = async (est, vagaId) => {
+  // Veio do mapa público (Home) já com um estacionamento pré-selecionado
+  useEffect(() => {
+    if (location.state?.reservar) abrirReserva(location.state.reservar);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const confirmarReserva = async (est, vagaId, veiculoId, previsaoChegada) => {
     try {
       const vaga = vagasEstac.find(v => String(v.id) === String(vagaId));
-      const { data } = await api.post('/reservas', { estacionamentoId: est.id, vagaId });
+      const params = { vagaId, veiculoId };
+      if (previsaoChegada) params.previsaoChegada = new Date(previsaoChegada).toISOString();
+      const { data } = await api.post('/estadias/reservar', null, { params });
       setModalReserva(null);
       setModalCodigo({
-        codigo: data.codigo || data.codigoCheckin || 'N/A',
+        codigo: data.codigo,
         estacionamentoNome: est.nome,
-        vagaCodigo: vaga?.codigo || vagaId,
+        vagaCodigo: vaga?.codigo || data.vaga?.codigo || vagaId,
       });
       toast.success('Reserva confirmada!', `Código gerado para ${est.nome}`);
+      buscarEstadia();
     } catch (err) {
       toast.error('Erro na reserva', err.response?.data?.message || 'Tente novamente.');
     }
+  };
+
+  const irParaVeiculos = () => {
+    setModalReserva(null);
+    setAba('veiculos');
+    setMostrarForm(true);
   };
 
   const handleAddVeiculo = async (e) => {
@@ -245,6 +319,13 @@ export default function PainelMotorista() {
     historico: 'Histórico',
   };
 
+  const vagasLivres = (est) => Math.max(0, (est.vagasTotais ?? 0) - (est.vagasOcupadas ?? 0));
+  const estacComCoord = estacionamentos.filter(e => e.latitude && e.longitude);
+  const filtrados = estacComCoord.filter(e =>
+    e.nome?.toLowerCase().includes(filtroMapa.toLowerCase()) ||
+    e.endereco?.toLowerCase().includes(filtroMapa.toLowerCase())
+  );
+
   return (
     <>
       <PainelLayout
@@ -254,43 +335,102 @@ export default function PainelMotorista() {
       >
 
         {/* ══ MAPA — sempre montado, oculto nas outras abas ══ */}
-        <div style={{ display: aba === 'mapa' ? 'flex' : 'none', flex: 1, minHeight: 0 }}>
-          <MapContainer
-            center={mapCenter}
-            zoom={userPos ? 14 : 5}
-            style={{ flex: 1, minHeight: 0 }}
-          >
-            <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              attribution='&copy; OpenStreetMap &copy; CARTO'
-            />
-            {userPos && <RecenterMap pos={userPos} />}
-            {estacionamentos.map(est => {
-              if (!est.latitude || !est.longitude) return null;
-              const livres = Math.max(0, est.vagasTotais - (est.vagasOcupadas || 0));
-              return (
-                <Marker key={est.id} position={[est.latitude, est.longitude]}
-                  icon={livres > 0 ? mkVerde : mkVermelho}>
-                  <Popup>
-                    <div style={{ fontFamily: 'Inter,sans-serif', minWidth: 185 }}>
-                      <strong style={{ display: 'block', marginBottom: 4, color: '#0f172a' }}>{est.nome}</strong>
-                      <div style={{ fontSize: '.8rem', color: '#64748b', marginBottom: 8 }}>{est.endereco}</div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 4 }}>
-                        <span style={{ fontSize: '.8rem' }}>{livres > 0 ? `🟢 ${livres} livres` : '🔴 Lotado'}</span>
-                        <span style={{ fontSize: '.8rem', color: '#10b981', fontWeight: 700 }}>R$ {est.valorHora?.toFixed(2)}/h</span>
+        <div className="busca-layout" style={{ display: aba === 'mapa' ? 'flex' : 'none' }}>
+          <div className="busca-map">
+            <MapContainer
+              center={mapCenter}
+              zoom={userPos ? 14 : 5}
+              style={{ height: '100%', width: '100%' }}
+            >
+              <TileLayer
+                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                attribution='&copy; OpenStreetMap &copy; CARTO'
+              />
+              <MapResize ativo={aba === 'mapa'} />
+              {userPos && <RecenterMap pos={userPos} zoom={14} />}
+              {selecionado?.latitude && <RecenterMap pos={[selecionado.latitude, selecionado.longitude]} zoom={16} />}
+              {filtrados.map(est => {
+                const livres = vagasLivres(est);
+                return (
+                  <Marker key={est.id} position={[est.latitude, est.longitude]}
+                    icon={livres > 0 ? mkVerde : mkVermelho}
+                    eventHandlers={{ click: () => setSelecionado(est) }}>
+                    <Popup>
+                      <div style={{ fontFamily: 'Inter,sans-serif', minWidth: 185 }}>
+                        <strong style={{ display: 'block', marginBottom: 4, color: '#0f172a' }}>{est.nome}</strong>
+                        <div style={{ fontSize: '.8rem', color: '#64748b', marginBottom: 8 }}>{est.endereco}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 4 }}>
+                          <span style={{ fontSize: '.8rem' }}>{livres > 0 ? `🟢 ${livres} livres` : '🔴 Lotado'}</span>
+                          <span style={{ fontSize: '.8rem', color: '#10b981', fontWeight: 700 }}>R$ {est.valorHora?.toFixed(2)}/h</span>
+                        </div>
+                        <button
+                          onClick={() => abrirReserva(est)}
+                          disabled={livres === 0}
+                          style={{ width: '100%', padding: '7px', background: livres > 0 ? '#2563eb' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 6, cursor: livres > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '.85rem', fontFamily: 'Inter,sans-serif' }}>
+                          {livres > 0 ? 'Reservar vaga' : 'Sem vagas'}
+                        </button>
                       </div>
-                      <button
-                        onClick={() => abrirReserva(est)}
-                        disabled={livres === 0}
-                        style={{ width: '100%', padding: '7px', background: livres > 0 ? '#2563eb' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 6, cursor: livres > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '.85rem', fontFamily: 'Inter,sans-serif' }}>
-                        {livres > 0 ? 'Reservar vaga' : 'Sem vagas'}
-                      </button>
+                    </Popup>
+                  </Marker>
+                );
+              })}
+            </MapContainer>
+          </div>
+
+          <div className="busca-list">
+            <div className="busca-search-wrap">
+              <span className="busca-search-icon">🔍</span>
+              <input
+                className="form-control busca-search-input"
+                placeholder="Buscar por nome ou endereço..."
+                value={filtroMapa}
+                onChange={e => setFiltroMapa(e.target.value)}
+              />
+            </div>
+            <div className="busca-list-header">
+              <span style={{ fontWeight: 600, fontSize: '.9rem' }}>
+                {filtrados.length} {filtrados.length === 1 ? 'estacionamento' : 'estacionamentos'}
+              </span>
+              {userPos && <span style={{ fontSize: '.75rem', color: 'var(--green)' }}>● Localização ativa</span>}
+            </div>
+
+            {filtrados.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">🅿</div>
+                <h3>Nenhum resultado</h3>
+                <p>Tente outro nome ou endereço</p>
+              </div>
+            ) : filtrados.map(est => {
+              const livres = vagasLivres(est);
+              const sel = selecionado?.id === est.id;
+              return (
+                <div key={est.id} className={`busca-list-item ${sel ? 'selected' : ''}`}
+                  onClick={() => setSelecionado(est)}>
+                  <div className="busca-list-item-top">
+                    <div className="busca-list-item-info">
+                      <div className="busca-list-item-nome">{est.nome}</div>
+                      <div className="busca-list-item-end">📍 {est.endereco}</div>
                     </div>
-                  </Popup>
-                </Marker>
+                    <span className={`badge ${livres > 0 ? 'badge-green' : 'badge-red'}`}>
+                      {livres > 0 ? `${livres} livres` : 'Lotado'}
+                    </span>
+                  </div>
+                  <div className="busca-list-item-mid">
+                    <span style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>{est.vagasTotais} vagas</span>
+                    <span className="busca-list-item-price">
+                      R$ {est.valorHora?.toFixed(2)}<span style={{ fontSize: '.72rem', fontWeight: 400, color: 'var(--text-muted)' }}>/h</span>
+                    </span>
+                  </div>
+                  <button
+                    className={`btn btn-sm btn-full ${livres > 0 ? 'btn-primary' : 'btn-ghost'}`}
+                    disabled={livres === 0}
+                    onClick={e => { e.stopPropagation(); abrirReserva(est); }}>
+                    {livres === 0 ? 'Sem vagas' : 'Reservar vaga'}
+                  </button>
+                </div>
               );
             })}
-          </MapContainer>
+          </div>
         </div>
 
         {/* ══ DEMAIS ABAS — com padding normal ══ */}
@@ -300,7 +440,37 @@ export default function PainelMotorista() {
             {/* ESTADIA */}
             {aba === 'estadia' && (
               <div className="estadia-wrap">
-                {estadiaAtiva ? (
+                {estadiaAtiva?.pendente ? (
+                  <div className="ticket">
+                    <div className="ticket-head" style={{ background: 'linear-gradient(135deg, var(--blue-dim), var(--blue-light))' }}>
+                      <div className="ticket-head-label">Reserva pendente em</div>
+                      <div className="ticket-head-name">{estadiaAtiva.vaga?.estacionamento?.nome || 'SmartPark'}</div>
+                      <div className="ticket-head-addr">{estadiaAtiva.vaga?.estacionamento?.endereco}</div>
+                    </div>
+                    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '.9rem' }}>
+                        Apresente este código ao operador ao chegar:
+                      </p>
+                      <div className="codigo-display">{estadiaAtiva.codigo}</div>
+                    </div>
+                    <div className="ticket-info">
+                      <div>
+                        <div className="ticket-info-label">VEÍCULO</div>
+                        <div className="placa-badge" style={{ fontSize: '1rem' }}>{estadiaAtiva.veiculo?.placa}</div>
+                        <div style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>{estadiaAtiva.veiculo?.modelo}</div>
+                      </div>
+                      <div className="ticket-info-right">
+                        <div className="ticket-info-label">VAGA RESERVADA</div>
+                        <span className="badge badge-blue" style={{ fontSize: '.88rem', padding: '5px 14px' }}>
+                          {estadiaAtiva.vaga?.codigo ? `Vaga ${estadiaAtiva.vaga.codigo}` : `ID ${estadiaAtiva.vaga?.id}`}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="ticket-foot" style={{ background: 'rgba(245,158,11,.08)', borderTopColor: 'rgba(245,158,11,.15)', color: 'var(--amber)' }}>
+                      ⏳ Aguardando check-in no estacionamento
+                    </div>
+                  </div>
+                ) : estadiaAtiva ? (
                   <>
                     <div className="ticket">
                       <div className="ticket-head">
@@ -492,8 +662,9 @@ export default function PainelMotorista() {
 
       {modalReserva && (
         <ModalReserva
-          est={modalReserva} vagas={vagasEstac}
+          est={modalReserva} vagas={vagasEstac} veiculos={veiculos}
           onConfirm={confirmarReserva} onClose={() => setModalReserva(null)}
+          onIrParaVeiculos={irParaVeiculos}
         />
       )}
       {modalCodigo && (
@@ -510,6 +681,32 @@ export default function PainelMotorista() {
         }
         @media (max-width: 600px) {
           .hide-mobile { display: none; }
+        }
+
+        /* ── Buscar vagas: mapa + lista ── */
+        .busca-layout { flex: 1; min-height: 0; display: flex; flex-direction: row; }
+        .busca-map { flex: 1; min-height: 0; }
+        .busca-list { width: 360px; flex-shrink: 0; background: var(--bg-surface); border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+
+        .busca-search-wrap { position: relative; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+        .busca-search-icon { position: absolute; left: 28px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+        .busca-search-input { padding-left: 36px !important; background: var(--bg-card); }
+
+        .busca-list-header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; }
+        .busca-list-item { padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; border-left: 3px solid transparent; transition: background .12s, border-color .12s; }
+        .busca-list-item:hover { background: var(--bg-card); }
+        .busca-list-item.selected { background: var(--blue-glow); border-left-color: var(--blue); }
+        .busca-list-item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+        .busca-list-item-info { min-width: 0; }
+        .busca-list-item-nome { font-weight: 600; font-size: .92rem; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .busca-list-item-end  { font-size: .78rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .busca-list-item-mid  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .busca-list-item-price { font-weight: 700; color: var(--green); font-size: .97rem; }
+
+        @media (max-width: 768px) {
+          .busca-layout { flex-direction: column; }
+          .busca-map { flex: none; height: 42vh; min-height: 240px; }
+          .busca-list { width: 100%; flex: 1; border-left: none; border-top: 1px solid var(--border); }
         }
       `}</style>
     </>

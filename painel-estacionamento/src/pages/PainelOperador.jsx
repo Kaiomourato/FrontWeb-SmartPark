@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import PainelLayout from '../components/PainelLayout';
+import BarChart from '../components/BarChart';
 
 const NAV = [
   {
@@ -17,6 +16,8 @@ const NAV = [
   {
     label: 'Gestão',
     items: [
+      { id: 'vagas',         icon: '🅿️', label: 'Gerenciar vagas' },
+      { id: 'agendadas',     icon: '📅', label: 'Vagas agendadas' },
       { id: 'historico',     icon: '📋', label: 'Histórico' },
       { id: 'configuracoes', icon: '⚙️', label: 'Configurações' },
     ],
@@ -39,6 +40,11 @@ function tempoDecorrido(entrada) {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   return h > 0 ? `${h}h ${m}min` : `${m}min`;
+}
+
+function formatarDataHora(data) {
+  if (!data) return '—';
+  return new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function valorAtual(entrada, valorHora) {
@@ -71,8 +77,9 @@ export default function PainelOperador() {
   const [precos, setPrecos] = useState({ CARRO: '', MOTO: '', CAMINHONETE: '' });
   const [salvandoPrecos, setSalvandoPrecos] = useState(false);
 
+  const [relatorio, setRelatorio] = useState(null);
+
   const toast = useToast();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const t = setInterval(() => setVagas(v => [...v]), 30000);
@@ -94,10 +101,6 @@ export default function PainelOperador() {
       ]);
       setVagas(vagasR.data);
       setEstadiasAtivas(estadiasR.data);
-      if (vagasR.data.length > 0 && !vagaSelecionada) {
-        const livre = vagasR.data.find(v => !v.ocupada);
-        setVagaSelecionada(livre?.id || vagasR.data[0].id);
-      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -131,14 +134,28 @@ export default function PainelOperador() {
     } catch { setHistorico([]); }
   }, []);
 
-  useEffect(() => { carregar(); carregarResumoVagas(); carregarPrecos(); }, [carregar, carregarResumoVagas, carregarPrecos]);
+  const carregarRelatorio = useCallback(async () => {
+    try {
+      const { data } = await api.get('/estacionamentos/meu/relatorio');
+      setRelatorio(data);
+    } catch { setRelatorio(null); }
+  }, []);
+
+  useEffect(() => { carregar(); carregarResumoVagas(); carregarPrecos(); carregarRelatorio(); }, [carregar, carregarResumoVagas, carregarPrecos, carregarRelatorio]);
   useEffect(() => { if (aba === 'historico') carregarHistorico(); }, [aba, carregarHistorico]);
+
+  // Vaga efetivamente selecionada no formulário de entrada: cai sempre numa
+  // vaga livre válida, mesmo que a seleção anterior tenha ficado ocupada.
+  const vagasLivresPatio = vagas.filter(v => !v.ocupada && v.ativo !== false);
+  const vagaSelecionadaValida = vagasLivresPatio.some(v => String(v.id) === String(vagaSelecionada));
+  const vagaAtual = vagaSelecionadaValida ? vagaSelecionada : String(vagasLivresPatio[0]?.id ?? '');
 
   const handleEntrada = async (e) => {
     e.preventDefault();
-    if (!vagaSelecionada) { toast.error('Selecione uma vaga', ''); return; }
+    if (!vagaAtual) { toast.error('Nenhuma vaga livre', 'O pátio está lotado no momento.'); return; }
+    if (!placaEntrada.trim()) { toast.error('Informe a placa', ''); return; }
     try {
-      await api.post(`/estadias?placa=${placaEntrada.toUpperCase()}&vagaId=${vagaSelecionada}`);
+      await api.post('/estadias', null, { params: { placa: placaEntrada.toUpperCase(), vagaId: vagaAtual } });
       toast.success('Entrada registrada!', `Placa ${placaEntrada.toUpperCase()} alocada.`);
       setPlacaEntrada('');
       carregar();
@@ -150,8 +167,8 @@ export default function PainelOperador() {
   const handleCheckin = async (e) => {
     e.preventDefault();
     try {
-      await api.post(`/estadias/checkin?codigo=${codigoCheckin.toUpperCase()}`);
-      toast.success('Check-in confirmado!', 'Veículo vinculado à vaga.');
+      await api.put('/estadias/checkin', null, { params: { codigo: codigoCheckin.toUpperCase() } });
+      toast.success('Check-in confirmado!', 'Entrada registrada com sucesso.');
       setCodigoCheckin('');
       carregar();
     } catch (err) {
@@ -166,6 +183,17 @@ export default function PainelOperador() {
       toast.success('Estadia encerrada!', `Cobrar R$ ${data.valor?.toFixed(2)} do cliente.`);
       carregar();
     } catch { toast.error('Erro', 'Não foi possível encerrar.'); }
+  };
+
+  const handleCancelarReserva = async (id, placa) => {
+    if (!window.confirm(`Cancelar a reserva de ${placa || 'este veículo'}? O motorista será notificado.`)) return;
+    try {
+      await api.put(`/estadias/${id}/cancelar`);
+      toast.success('Reserva cancelada', 'O motorista foi notificado.');
+      carregar();
+    } catch (err) {
+      toast.error('Erro', err.response?.data?.message || 'Não foi possível cancelar a reserva.');
+    }
   };
 
   const handleAddVaga = async (e) => {
@@ -206,14 +234,27 @@ export default function PainelOperador() {
 
   const handleSalvarVaga = async (id) => {
     if (!editCodigo.trim()) { toast.error('Código obrigatório', ''); return; }
+    const vaga = vagas.find(v => v.id === id);
     try {
-      await api.put(`/vagas/${id}`, { codigo: editCodigo.toUpperCase(), tipoVeiculo: editTipo || null });
+      await api.put(`/vagas/${id}`, { codigo: editCodigo.toUpperCase(), tipoVeiculo: editTipo || null, ativo: vaga?.ativo !== false });
       toast.success('Vaga atualizada!', '');
       cancelarEdicaoVaga();
       carregar();
       carregarResumoVagas();
     } catch (err) {
       toast.error('Erro', err.response?.data?.message || 'Não foi possível atualizar a vaga.');
+    }
+  };
+
+  const handleToggleAtivo = async (vaga) => {
+    const novoAtivo = vaga.ativo === false;
+    try {
+      await api.put(`/vagas/${vaga.id}`, { codigo: vaga.codigo, tipoVeiculo: vaga.tipoVeiculo || null, ativo: novoAtivo });
+      toast.success(novoAtivo ? 'Vaga ativada!' : 'Vaga desativada', `Vaga ${vaga.codigo}`);
+      carregar();
+      carregarResumoVagas();
+    } catch {
+      toast.error('Erro', 'Não foi possível atualizar a vaga.');
     }
   };
 
@@ -259,10 +300,11 @@ export default function PainelOperador() {
     </div>
   );
 
-  const vagasLivres  = vagas.filter(v => !v.ocupada && v.ativo !== false).length;
+  const vagasLivres  = vagasLivresPatio.length;
   const vagasOcupadas = vagas.filter(v => v.ocupada).length;
   const faturamentoAberto = estadiasAtivas.reduce((acc, e) => acc + valorAtual(e.entrada, estacionamento?.valorHora), 0);
-  const topbarTitles = { dashboard: 'Dashboard', patrio: 'Controle de pátio', checkin: 'Validar check-in', historico: 'Histórico', configuracoes: 'Configurações' };
+  const reservasPendentes = estadiasAtivas.filter(e => e.pendente);
+  const topbarTitles = { dashboard: 'Dashboard', patrio: 'Controle de pátio', vagas: 'Gerenciar vagas', agendadas: 'Vagas agendadas', checkin: 'Validar check-in', historico: 'Histórico', configuracoes: 'Configurações' };
 
   return (
     <PainelLayout
@@ -274,13 +316,13 @@ export default function PainelOperador() {
 
       {/* ══ DASHBOARD ══ */}
       {aba === 'dashboard' && (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div className="stats-grid">
             {[
               { icon: '🚗', label: 'Vagas ocupadas', value: vagasOcupadas, sub: `de ${vagas.length} totais`, color: vagasOcupadas > 0 ? 'var(--blue-light)' : undefined },
               { icon: '🟢', label: 'Vagas livres',   value: vagasLivres,  sub: 'disponíveis agora',  color: 'var(--green)' },
               { icon: '⏱️', label: 'Estadias ativas', value: estadiasAtivas.length, sub: 'em andamento' },
-              { icon: '💰', label: 'Faturamento em aberto', value: `R$ ${faturamentoAberto.toFixed(2)}`, sub: 'nas estadias ativas', color: 'var(--green)', small: true },
+              { icon: '📅', label: 'Vagas agendadas', value: reservasPendentes.length, sub: 'aguardando chegada' },
             ].map((s, i) => (
               <div className="stat-card" key={i}>
                 <div className="stat-card-icon">{s.icon}</div>
@@ -289,6 +331,62 @@ export default function PainelOperador() {
                 <div className="stat-card-sub">{s.sub}</div>
               </div>
             ))}
+          </div>
+
+          <div className="stats-grid">
+            {[
+              { icon: '💰', label: 'Faturamento em aberto', value: faturamentoAberto, sub: 'nas estadias ativas' },
+              { icon: '🗓️', label: 'Faturamento da semana', value: relatorio?.faturamento?.semana, sub: 'últimos 7 dias' },
+              { icon: '📆', label: 'Faturamento do mês', value: relatorio?.faturamento?.mes, sub: 'mês atual' },
+              { icon: '📈', label: 'Faturamento anual', value: relatorio?.faturamento?.ano, sub: 'ano atual' },
+            ].map((s, i) => (
+              <div className="stat-card" key={i}>
+                <div className="stat-card-icon">{s.icon}</div>
+                <div className="stat-card-label">{s.label}</div>
+                <div className="stat-card-value" style={{ color: 'var(--green)', fontSize: '1.4rem' }}>
+                  {s.value != null ? `R$ ${Number(s.value).toFixed(2)}` : '—'}
+                </div>
+                <div className="stat-card-sub">{s.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="card" style={{ padding: 24 }}>
+            <h2 style={{ fontWeight: 600, marginBottom: 20, fontSize: '1rem' }}>Fluxo de veículos (últimos 7 dias)</h2>
+            {relatorio?.fluxoSemanal?.length > 0 ? (
+              <BarChart
+                data={relatorio.fluxoSemanal}
+                labelKey="dia"
+                series={[
+                  { key: 'entradas', label: 'Entradas', color: 'var(--blue-light)' },
+                  { key: 'saidas', label: 'Saídas', color: 'var(--green)' },
+                ]}
+              />
+            ) : (
+              <div className="empty-state" style={{ padding: '20px 0' }}>
+                <div className="empty-state-icon">📊</div>
+                <h3>Sem dados de fluxo ainda</h3>
+                <p>O gráfico aparecerá assim que houver movimentação registrada.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="card" style={{ padding: 24 }}>
+            <h2 style={{ fontWeight: 600, marginBottom: 20, fontSize: '1rem' }}>Faturamento mensal (últimos 12 meses)</h2>
+            {relatorio?.faturamentoMensal?.length > 0 ? (
+              <BarChart
+                data={relatorio.faturamentoMensal}
+                labelKey="mes"
+                formatValue={v => `R$ ${v.toFixed(2)}`}
+                series={[{ key: 'valor', label: 'Faturamento', color: 'var(--green)' }]}
+              />
+            ) : (
+              <div className="empty-state" style={{ padding: '20px 0' }}>
+                <div className="empty-state-icon">📈</div>
+                <h3>Sem dados de faturamento ainda</h3>
+                <p>O gráfico aparecerá assim que houver estadias finalizadas.</p>
+              </div>
+            )}
           </div>
 
           <div className="card" style={{ padding: 24 }}>
@@ -326,28 +424,43 @@ export default function PainelOperador() {
       {aba === 'patrio' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div className="card" style={{ padding: 24 }}>
-            <h2 style={{ fontWeight: 600, marginBottom: 20, fontSize: '1rem' }}>Registrar entrada manual</h2>
-            <form className="entrada-form" onSubmit={handleEntrada}>
-              <div className="form-group">
-                <label className="form-label">Placa do veículo</label>
-                <input className="form-control placa" placeholder="ABC1234"
-                  value={placaEntrada} onChange={e => setPlacaEntrada(e.target.value)} required />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+              <h2 style={{ fontWeight: 600, fontSize: '1rem' }}>Registrar entrada manual</h2>
+              <span className={`badge ${vagasLivresPatio.length > 0 ? 'badge-green' : 'badge-red'}`}>
+                {vagasLivresPatio.length} {vagasLivresPatio.length === 1 ? 'vaga livre' : 'vagas livres'}
+              </span>
+            </div>
+            {vagas.length === 0 ? (
+              <div className="empty-state" style={{ padding: '20px 0' }}>
+                <div className="empty-state-icon">🅿</div>
+                <h3>Nenhuma vaga cadastrada</h3>
+                <p>Vá em Configurações para adicionar vagas</p>
               </div>
-              <div className="form-group">
-                <label className="form-label">Alocar na vaga</label>
-                <select className="form-control" value={vagaSelecionada} onChange={e => setVagaSelecionada(e.target.value)} required>
-                  {vagas.filter(v => v.ativo !== false).length === 0
-                    ? <option value="">Nenhuma vaga cadastrada</option>
-                    : vagas.filter(v => v.ativo !== false).map(v => (
-                      <option key={v.id} value={v.id} disabled={v.ocupada}>
-                        Vaga {v.codigo} {v.ocupada ? '⛔ Ocupada' : '✅ Livre'}
-                      </option>
-                    ))
-                  }
-                </select>
+            ) : vagasLivresPatio.length === 0 ? (
+              <div className="empty-state" style={{ padding: '20px 0' }}>
+                <div className="empty-state-icon">🚫</div>
+                <h3>Pátio lotado</h3>
+                <p>Não há vagas livres para registrar uma nova entrada agora.</p>
               </div>
-              <button className="btn btn-primary" type="submit">⬆ Liberar cancela</button>
-            </form>
+            ) : (
+              <form className="entrada-form" onSubmit={handleEntrada}>
+                <div className="form-group">
+                  <label className="form-label">Placa do veículo</label>
+                  <input className="form-control placa" placeholder="ABC1234" maxLength={8}
+                    value={placaEntrada} onChange={e => setPlacaEntrada(e.target.value.toUpperCase())} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Alocar na vaga</label>
+                  <select className="form-control" value={vagaAtual} onChange={e => setVagaSelecionada(e.target.value)} required>
+                    {vagasLivresPatio.map(v => {
+                      const info = tipoInfo(v.tipoVeiculo);
+                      return <option key={v.id} value={v.id}>{info.icon} Vaga {v.codigo} · {info.label}</option>;
+                    })}
+                  </select>
+                </div>
+                <button className="btn btn-primary" type="submit">⬆ Liberar cancela</button>
+              </form>
+            )}
           </div>
 
           <div className="card" style={{ padding: 24 }}>
@@ -379,16 +492,22 @@ export default function PainelOperador() {
                         <td><span className="placa-badge">{est.veiculo?.placa || 'N/A'}</span></td>
                         <td><span className="badge badge-blue">Vaga {est.vaga?.codigo || est.vaga?.id}</span></td>
                         <td style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '.85rem' }}>
-                          {est.entrada ? new Date(est.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                          {est.entrada ? new Date(est.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
                         </td>
-                        <td className="hide-mobile" style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{tempoDecorrido(est.entrada)}</td>
+                        <td className="hide-mobile" style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>
+                          {est.entrada ? tempoDecorrido(est.entrada) : '—'}
+                        </td>
                         <td className="hide-mobile" style={{ color: 'var(--green)', fontWeight: 600 }}>
-                          R$ {valorAtual(est.entrada, estacionamento?.valorHora).toFixed(2)}
+                          {est.entrada ? `R$ ${valorAtual(est.entrada, estacionamento?.valorHora).toFixed(2)}` : '—'}
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button className="btn btn-success btn-sm" onClick={() => handleFinalizar(est.id, est.veiculo?.placa)}>
-                            Encerrar
-                          </button>
+                          {est.pendente ? (
+                            <span className="badge badge-amber">⏳ Aguardando check-in</span>
+                          ) : (
+                            <button className="btn btn-success btn-sm" onClick={() => handleFinalizar(est.id, est.veiculo?.placa)}>
+                              Encerrar
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -397,6 +516,173 @@ export default function PainelOperador() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ══ GERENCIAR VAGAS ══ */}
+      {aba === 'vagas' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {resumoVagas.length > 0 && (
+            <div className="card" style={{ padding: 24 }}>
+              <h2 style={{ fontWeight: 600, marginBottom: 16, fontSize: '1rem' }}>Resumo por tipo de veículo</h2>
+              <div className="resumo-vagas-grid" style={{ marginBottom: 0 }}>
+                {resumoVagas.map(r => {
+                  const info = tipoInfo(r.tipoVeiculo);
+                  return (
+                    <div className="resumo-vaga-chip" key={r.tipoVeiculo ?? 'qualquer'}>
+                      <span className="resumo-vaga-chip-label">{info.icon} {info.label}</span>
+                      <span className="resumo-vaga-chip-value">
+                        <span style={{ color: 'var(--green)' }}>{r.livres}</span> livres / {r.total}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="card" style={{ padding: 24 }}>
+            <h2 style={{ fontWeight: 600, marginBottom: 20, fontSize: '1rem' }}>Adicionar vaga</h2>
+            <form onSubmit={handleAddVaga} className="entrada-form">
+              <div className="form-group">
+                <label className="form-label">Código da nova vaga</label>
+                <input className="form-control placa" placeholder="A-01"
+                  value={codigoNovaVaga} onChange={e => setCodigoNovaVaga(e.target.value.toUpperCase())} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Tipo de veículo aceito</label>
+                <select className="form-control" value={tipoNovaVaga} onChange={e => setTipoNovaVaga(e.target.value)}>
+                  <option value="">🅿 Qualquer tipo</option>
+                  {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+                </select>
+              </div>
+              <button className="btn btn-primary" type="submit">+ Criar vaga</button>
+            </form>
+          </div>
+
+          <div className="card" style={{ padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+              <h2 style={{ fontWeight: 600, fontSize: '1rem' }}>Todas as vagas</h2>
+              <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{vagas.length} cadastradas</span>
+            </div>
+            {vagas.length === 0 ? (
+              <div className="empty-state" style={{ padding: '24px 0' }}>
+                <div className="empty-state-icon">🅿</div>
+                <h3>Nenhuma vaga cadastrada</h3>
+                <p>Use o formulário acima para criar a primeira vaga</p>
+              </div>
+            ) : (
+              <div className="vaga-manage-grid">
+                {vagas.map(v => {
+                  const editando = vagaEditando === v.id;
+                  const info = tipoInfo(v.tipoVeiculo);
+                  const inativa = v.ativo === false;
+                  const estadia = estadiasAtivas.find(e => e.vaga?.id === v.id);
+                  const status = v.ocupada ? 'Ocupada' : inativa ? 'Inativa' : 'Livre';
+                  const statusClass = v.ocupada ? 'badge-red' : inativa ? 'badge-gray' : 'badge-green';
+
+                  return (
+                    <div className="vaga-manage-card" key={v.id}>
+                      {editando ? (
+                        <>
+                          <div className="form-group">
+                            <label className="form-label">Código</label>
+                            <input className="form-control placa" style={{ fontSize: '1rem' }}
+                              value={editCodigo} onChange={e => setEditCodigo(e.target.value.toUpperCase())} />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Tipo aceito</label>
+                            <select className="form-control" value={editTipo} onChange={e => setEditTipo(e.target.value)}>
+                              <option value="">🅿 Qualquer tipo</option>
+                              {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+                            </select>
+                          </div>
+                          <div className="vaga-manage-actions">
+                            <button className="btn btn-ghost btn-sm" onClick={cancelarEdicaoVaga}>Cancelar</button>
+                            <button className="btn btn-success btn-sm" onClick={() => handleSalvarVaga(v.id)}>Salvar</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="vaga-manage-head">
+                            <span className="placa-badge" style={{ fontSize: '1.05rem' }}>{v.codigo}</span>
+                            <span className={`badge ${statusClass}`}>{status}</span>
+                          </div>
+                          <span className="badge badge-blue" style={{ alignSelf: 'flex-start' }}>{info.icon} {info.label}</span>
+                          {estadia && (
+                            <div className="vaga-manage-est">
+                              <span className="placa-badge" style={{ fontSize: '.78rem' }}>{estadia.veiculo?.placa}</span>
+                              <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>{tempoDecorrido(estadia.entrada)}</span>
+                            </div>
+                          )}
+                          <div className="vaga-manage-actions">
+                            <button className="btn btn-ghost btn-sm" onClick={() => iniciarEdicaoVaga(v)}>Editar</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => handleToggleAtivo(v)} disabled={v.ocupada}>
+                              {inativa ? 'Ativar' : 'Desativar'}
+                            </button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDeleteVaga(v.id, v.codigo)} disabled={v.ocupada}>Excluir</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ VAGAS AGENDADAS ══ */}
+      {aba === 'agendadas' && (
+        <div className="card" style={{ padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+            <h2 style={{ fontWeight: 600, fontSize: '1rem' }}>Reservas aguardando chegada</h2>
+            <span className="badge badge-amber">{reservasPendentes.length} {reservasPendentes.length === 1 ? 'pendente' : 'pendentes'}</span>
+          </div>
+          {reservasPendentes.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">📅</div>
+              <h3>Nenhuma vaga agendada</h3>
+              <p>As reservas feitas pelos motoristas aparecerão aqui.</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Placa</th>
+                    <th>Vaga</th>
+                    <th className="hide-mobile">Código</th>
+                    <th>Reservado em</th>
+                    <th className="hide-mobile">Previsão de chegada</th>
+                    <th style={{ textAlign: 'right' }}>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reservasPendentes.map(est => (
+                    <tr key={est.id}>
+                      <td>
+                        <span className="placa-badge">{est.veiculo?.placa || 'N/A'}</span>
+                        {est.veiculo?.modelo && (
+                          <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{est.veiculo.modelo}</div>
+                        )}
+                      </td>
+                      <td><span className="badge badge-blue">Vaga {est.vaga?.codigo || est.vaga?.id}</span></td>
+                      <td className="hide-mobile" style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{est.codigo}</td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{formatarDataHora(est.criadoEm)}</td>
+                      <td className="hide-mobile" style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{formatarDataHora(est.previsaoChegada)}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleCancelarReserva(est.id, est.veiculo?.placa)}>
+                          Cancelar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -527,104 +813,6 @@ export default function PainelOperador() {
                 </button>
               </div>
             </form>
-          </div>
-
-          <div className="card" style={{ padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
-              <h2 style={{ fontWeight: 600, fontSize: '1rem' }}>Gerenciar vagas</h2>
-              <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{vagas.length} cadastradas</span>
-            </div>
-
-            {resumoVagas.length > 0 && (
-              <div className="resumo-vagas-grid">
-                {resumoVagas.map(r => {
-                  const info = tipoInfo(r.tipoVeiculo);
-                  return (
-                    <div className="resumo-vaga-chip" key={r.tipoVeiculo ?? 'qualquer'}>
-                      <span className="resumo-vaga-chip-label">{info.icon} {info.label}</span>
-                      <span className="resumo-vaga-chip-value">
-                        <span style={{ color: 'var(--green)' }}>{r.livres}</span> livres / {r.total}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <form onSubmit={handleAddVaga} style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div className="form-group" style={{ flex: '1 1 140px' }}>
-                <label className="form-label">Código da nova vaga</label>
-                <input className="form-control placa" placeholder="A-01"
-                  value={codigoNovaVaga} onChange={e => setCodigoNovaVaga(e.target.value.toUpperCase())} required />
-              </div>
-              <div className="form-group" style={{ flex: '1 1 170px' }}>
-                <label className="form-label">Tipo de veículo aceito</label>
-                <select className="form-control" value={tipoNovaVaga} onChange={e => setTipoNovaVaga(e.target.value)}>
-                  <option value="">🅿 Qualquer tipo</option>
-                  {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
-                </select>
-              </div>
-              <button className="btn btn-primary" type="submit" style={{ height: 44, flexShrink: 0 }}>+ Criar</button>
-            </form>
-            {vagas.length === 0 ? (
-              <div className="empty-state" style={{ padding: '24px 0' }}><p>Nenhuma vaga cadastrada</p></div>
-            ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Código</th>
-                      <th>Tipo aceito</th>
-                      <th>Status</th>
-                      <th style={{ textAlign: 'right' }}>Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vagas.map(v => {
-                      const editando = vagaEditando === v.id;
-                      const info = tipoInfo(v.tipoVeiculo);
-                      return (
-                        <tr key={v.id}>
-                          <td>
-                            {editando ? (
-                              <input className="form-control placa" style={{ minWidth: 100, fontSize: '.9rem' }}
-                                value={editCodigo} onChange={e => setEditCodigo(e.target.value.toUpperCase())} />
-                            ) : (
-                              <span className="placa-badge" style={{ fontSize: '.83rem' }}>{v.codigo}</span>
-                            )}
-                          </td>
-                          <td>
-                            {editando ? (
-                              <select className="form-control" style={{ minWidth: 160 }}
-                                value={editTipo} onChange={e => setEditTipo(e.target.value)}>
-                                <option value="">🅿 Qualquer tipo</option>
-                                {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
-                              </select>
-                            ) : (
-                              <span className="badge badge-gray">{info.icon} {info.label}</span>
-                            )}
-                          </td>
-                          <td><span className={`badge ${v.ocupada ? 'badge-red' : 'badge-green'}`}>{v.ocupada ? 'Ocupada' : 'Livre'}</span></td>
-                          <td style={{ textAlign: 'right' }}>
-                            {editando ? (
-                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                <button className="btn btn-ghost btn-sm" onClick={cancelarEdicaoVaga}>Cancelar</button>
-                                <button className="btn btn-success btn-sm" onClick={() => handleSalvarVaga(v.id)}>Salvar</button>
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                <button className="btn btn-ghost btn-sm" onClick={() => iniciarEdicaoVaga(v)}>Editar</button>
-                                <button className="btn btn-danger btn-sm" onClick={() => handleDeleteVaga(v.id, v.codigo)} disabled={v.ocupada}>Excluir</button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         </div>
       )}

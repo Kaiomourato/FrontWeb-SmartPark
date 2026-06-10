@@ -11,14 +11,17 @@ import { useAuth } from '../context/AuthContext';
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 
-const mkVerde = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
-});
-const mkVermelho = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
-});
+function criarPin(cor) {
+  return L.divIcon({
+    className: 'map-pin',
+    html: `<span class="map-pin-dot" style="background:${cor}"></span>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    popupAnchor: [0, -10],
+  });
+}
+const mkVerde = criarPin('#10b981');
+const mkVermelho = criarPin('#ef4444');
 
 function RecenterMap({ pos }) {
   const map = useMap();

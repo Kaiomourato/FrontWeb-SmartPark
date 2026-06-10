@@ -103,7 +103,7 @@ select.form-control { cursor: pointer; }
 /* ─────────────────────────────────────────
    BADGES
 ───────────────────────────────────────── */
-.badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: .75rem; font-weight: 600; letter-spacing: .03em; }
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: .75rem; font-weight: 600; letter-spacing: .03em; white-space: nowrap; }
 .badge-green { background: rgba(16,185,129,.15); color: var(--green); }
 .badge-red   { background: rgba(239,68,68,.15);  color: var(--red); }
 .badge-blue  { background: rgba(37,99,235,.15);  color: var(--blue-light); }
@@ -165,6 +165,17 @@ select.form-control { cursor: pointer; }
 @keyframes slideUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: none; } }
 
 /* ─────────────────────────────────────────
+   CÓDIGO DE CHECK-IN
+───────────────────────────────────────── */
+.codigo-display {
+  font-family: var(--font-mono); font-size: 2.4rem; font-weight: 700;
+  letter-spacing: 8px; color: var(--blue-light); padding: 20px 16px;
+  background: var(--bg-surface); border-radius: 12px; border: 2px dashed var(--blue);
+  word-break: break-all; text-align: center;
+}
+.codigo-display.sm { font-size: 1.6rem; letter-spacing: 6px; padding: 14px; }
+
+/* ─────────────────────────────────────────
    LAYOUT DO PAINEL (sidebar + main)
 ───────────────────────────────────────── */
 .painel-layout { display: flex; min-height: 100vh; }
@@ -223,6 +234,10 @@ select.form-control { cursor: pointer; }
 /* ─────────────────────────────────────────
    HOME — layout mapa+lista
 ───────────────────────────────────────── */
+/* Marcadores de mapa (sem dependência externa) */
+.map-pin { background: transparent; border: none; }
+.map-pin-dot { display: block; width: 18px; height: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+
 .home-layout { display: flex; flex-direction: column; flex: 1; }
 .home-hero { padding: 56px 24px 40px; text-align: center; background: linear-gradient(180deg, rgba(37,99,235,.06) 0%, transparent 100%); border-bottom: 1px solid var(--border); }
 .home-body { display: grid; grid-template-columns: 1fr 380px; flex: 1; min-height: 0; }
@@ -245,6 +260,22 @@ select.form-control { cursor: pointer; }
 .resumo-vaga-chip { flex: 1 1 140px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
 .resumo-vaga-chip-label { font-size: .75rem; color: var(--text-secondary); font-weight: 600; }
 .resumo-vaga-chip-value { font-size: .95rem; font-weight: 700; }
+
+.vaga-manage-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.vaga-manage-card { display: flex; flex-direction: column; gap: 10px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; }
+.vaga-manage-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.vaga-manage-est { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.vaga-manage-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.vaga-manage-actions .btn { flex: 1 1 auto; }
+
+.bar-chart-legend { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+.bar-chart-legend-item { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--text-secondary); }
+.bar-chart-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.bar-chart { display: flex; align-items: flex-end; gap: 8px; }
+.bar-chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.bar-chart-bars { display: flex; align-items: flex-end; justify-content: center; gap: 3px; width: 100%; height: 100%; }
+.bar-chart-bar { width: 100%; max-width: 22px; border-radius: 4px 4px 0 0; min-height: 2px; transition: height .3s; }
+.bar-chart-label { font-size: .7rem; color: var(--text-secondary); margin-top: 8px; white-space: nowrap; }
 
 .vagas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 10px; }
 .vaga-tile { border-radius: 10px; padding: 12px 6px; text-align: center; cursor: default; transition: transform .15s; }
@@ -350,6 +381,11 @@ select.form-control { cursor: pointer; }
 
   /* Vagas grid menor */
   .vagas-grid { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+  .vaga-manage-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+
+  /* Gráficos */
+  .bar-chart-label { font-size: .62rem; }
+  .bar-chart-bar { max-width: 14px; }
 
   /* Toast no centro-baixo no mobile */
   .toast-container { right: 12px; left: 12px; bottom: 16px; }
