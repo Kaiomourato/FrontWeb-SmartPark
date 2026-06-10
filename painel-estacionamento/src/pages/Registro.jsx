@@ -15,7 +15,6 @@ export default function Registro() {
   const [nomeEstac, setNomeEstac] = useState('');
   const [endereco, setEndereco] = useState('');
   const [valorHora, setValorHora] = useState('');
-  const [vagasTotais, setVagasTotais] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [buscandoGeo, setBuscandoGeo] = useState(false);
@@ -62,7 +61,6 @@ export default function Registro() {
           nome: nomeEstac,
           endereco,
           valorHora: parseFloat(valorHora),
-          vagasTotais: parseInt(vagasTotais, 10),
           latitude: latitude ? parseFloat(latitude) : null,
           longitude: longitude ? parseFloat(longitude) : null,
         });
@@ -150,17 +148,13 @@ export default function Registro() {
                       <input className="form-control" placeholder="Ex: Rua das Flores, 100 — Centro"
                         value={endereco} onChange={e => setEndereco(e.target.value)} required />
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <div className="form-group">
-                        <label className="form-label">Valor por hora (R$)</label>
-                        <input className="form-control" type="number" step="0.01" min="0" placeholder="5.00"
-                          value={valorHora} onChange={e => setValorHora(e.target.value)} required />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Total de vagas</label>
-                        <input className="form-control" type="number" min="1" placeholder="50"
-                          value={vagasTotais} onChange={e => setVagasTotais(e.target.value)} required />
-                      </div>
+                    <div className="form-group">
+                      <label className="form-label">Valor por hora padrão (R$)</label>
+                      <input className="form-control" type="number" step="0.01" min="0" placeholder="5.00"
+                        value={valorHora} onChange={e => setValorHora(e.target.value)} required />
+                      <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                        Você poderá definir preços diferentes por tipo de veículo depois, no painel.
+                      </p>
                     </div>
 
                     {/* Localização */}

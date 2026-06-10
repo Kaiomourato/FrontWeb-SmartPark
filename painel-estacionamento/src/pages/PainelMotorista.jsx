@@ -180,7 +180,7 @@ export default function PainelMotorista() {
 
   const abrirReserva = async (est) => {
     try {
-      const { data } = await api.get('/vagas', { params: { estacionamentoId: est.id } });
+      const { data } = await api.get(`/vagas/por-estacionamento/${est.id}`);
       setVagasEstac(data);
     } catch { setVagasEstac([]); }
     setModalReserva(est);

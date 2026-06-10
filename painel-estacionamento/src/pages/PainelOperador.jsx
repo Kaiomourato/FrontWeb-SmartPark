@@ -23,6 +23,16 @@ const NAV = [
   },
 ];
 
+const TIPOS_VEICULO = [
+  { id: 'CARRO', icon: '🚗', label: 'Carro' },
+  { id: 'MOTO', icon: '🏍️', label: 'Moto' },
+  { id: 'CAMINHONETE', icon: '🛻', label: 'Caminhonete' },
+];
+
+function tipoInfo(tipoVeiculo) {
+  return TIPOS_VEICULO.find(t => t.id === tipoVeiculo) || { icon: '🅿', label: 'Qualquer tipo' };
+}
+
 function tempoDecorrido(entrada) {
   if (!entrada) return '--';
   const ms = Date.now() - new Date(entrada).getTime();
@@ -48,9 +58,18 @@ export default function PainelOperador() {
   const [vagaSelecionada, setVagaSelecionada] = useState('');
   const [codigoCheckin, setCodigoCheckin] = useState('');
   const [codigoNovaVaga, setCodigoNovaVaga] = useState('');
+  const [tipoNovaVaga, setTipoNovaVaga] = useState('');
   const [cfgNome, setCfgNome] = useState('');
   const [cfgValorHora, setCfgValorHora] = useState('');
   const [cfgEndereco, setCfgEndereco] = useState('');
+
+  const [resumoVagas, setResumoVagas] = useState([]);
+  const [vagaEditando, setVagaEditando] = useState(null);
+  const [editCodigo, setEditCodigo] = useState('');
+  const [editTipo, setEditTipo] = useState('');
+
+  const [precos, setPrecos] = useState({ CARRO: '', MOTO: '', CAMINHONETE: '' });
+  const [salvandoPrecos, setSalvandoPrecos] = useState(false);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -86,6 +105,25 @@ export default function PainelOperador() {
     }
   }, []);
 
+  const carregarResumoVagas = useCallback(async () => {
+    try {
+      const { data } = await api.get('/vagas/resumo');
+      setResumoVagas(data);
+    } catch { setResumoVagas([]); }
+  }, []);
+
+  const carregarPrecos = useCallback(async () => {
+    try {
+      const { data } = await api.get('/estacionamentos/meu/precos');
+      setPrecos(p => {
+        const novo = { ...p };
+        TIPOS_VEICULO.forEach(t => { novo[t.id] = ''; });
+        data.forEach(item => { novo[item.tipoVeiculo] = item.valorHora ?? ''; });
+        return novo;
+      });
+    } catch { /* mantém valores padrão */ }
+  }, []);
+
   const carregarHistorico = useCallback(async () => {
     try {
       const r = await api.get('/estadias/historico');
@@ -93,7 +131,7 @@ export default function PainelOperador() {
     } catch { setHistorico([]); }
   }, []);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { carregar(); carregarResumoVagas(); carregarPrecos(); }, [carregar, carregarResumoVagas, carregarPrecos]);
   useEffect(() => { if (aba === 'historico') carregarHistorico(); }, [aba, carregarHistorico]);
 
   const handleEntrada = async (e) => {
@@ -132,12 +170,13 @@ export default function PainelOperador() {
 
   const handleAddVaga = async (e) => {
     e.preventDefault();
-    if (!estacionamento) { toast.error('Sem estacionamento vinculado', ''); return; }
     try {
-      await api.post('/vagas', { codigo: codigoNovaVaga, ocupada: false, estacionamento: { id: estacionamento.id } });
+      await api.post('/vagas', { codigo: codigoNovaVaga, tipoVeiculo: tipoNovaVaga || null });
       toast.success('Vaga criada!', `Vaga ${codigoNovaVaga} adicionada.`);
       setCodigoNovaVaga('');
+      setTipoNovaVaga('');
       carregar();
+      carregarResumoVagas();
     } catch (err) {
       toast.error('Erro', err.response?.data?.message || 'Código pode já existir.');
     }
@@ -149,7 +188,56 @@ export default function PainelOperador() {
       await api.delete(`/vagas/${id}`);
       toast.success('Vaga removida', `Vaga ${codigo} excluída.`);
       carregar();
+      carregarResumoVagas();
     } catch { toast.error('Erro', 'Vaga pode estar ocupada.'); }
+  };
+
+  const iniciarEdicaoVaga = (vaga) => {
+    setVagaEditando(vaga.id);
+    setEditCodigo(vaga.codigo);
+    setEditTipo(vaga.tipoVeiculo || '');
+  };
+
+  const cancelarEdicaoVaga = () => {
+    setVagaEditando(null);
+    setEditCodigo('');
+    setEditTipo('');
+  };
+
+  const handleSalvarVaga = async (id) => {
+    if (!editCodigo.trim()) { toast.error('Código obrigatório', ''); return; }
+    try {
+      await api.put(`/vagas/${id}`, { codigo: editCodigo.toUpperCase(), tipoVeiculo: editTipo || null });
+      toast.success('Vaga atualizada!', '');
+      cancelarEdicaoVaga();
+      carregar();
+      carregarResumoVagas();
+    } catch (err) {
+      toast.error('Erro', err.response?.data?.message || 'Não foi possível atualizar a vaga.');
+    }
+  };
+
+  const handleSalvarPrecos = async (e) => {
+    e.preventDefault();
+    const itens = TIPOS_VEICULO
+      .filter(t => precos[t.id] !== '' && precos[t.id] !== null && precos[t.id] !== undefined)
+      .map(t => ({ tipoVeiculo: t.id, valorHora: parseFloat(precos[t.id]) }));
+
+    if (itens.length === 0) {
+      toast.info('Nada para salvar', 'Defina ao menos um valor personalizado, ou deixe em branco para usar o padrão.');
+      return;
+    }
+
+    setSalvandoPrecos(true);
+    try {
+      await api.put('/estacionamentos/meu/precos', itens);
+      toast.success('Preços salvos!', '');
+      carregarPrecos();
+    } catch (err) {
+      toast.error('Erro ao salvar preços', err.response?.data?.message || '');
+    } finally {
+      setSalvandoPrecos(false);
+    }
   };
 
   const handleSalvarConfig = async (e) => {
@@ -403,7 +491,7 @@ export default function PainelOperador() {
                   <input className="form-control" value={cfgEndereco} onChange={e => setCfgEndereco(e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Valor por hora (R$)</label>
+                  <label className="form-label">Valor por hora padrão (R$)</label>
                   <input className="form-control" type="number" step="0.01" min="0"
                     value={cfgValorHora} onChange={e => setCfgValorHora(e.target.value)} required />
                 </div>
@@ -415,15 +503,66 @@ export default function PainelOperador() {
           </div>
 
           <div className="card" style={{ padding: 24 }}>
+            <h2 style={{ fontWeight: 600, marginBottom: 6, fontSize: '1rem' }}>Preços por tipo de veículo</h2>
+            <p style={{ fontSize: '.8rem', color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
+              Defina um valor de hora específico por tipo de veículo. Deixe em branco para usar o valor padrão
+              (R$ {Number(cfgValorHora || 0).toFixed(2)}/h).
+            </p>
+            <form onSubmit={handleSalvarPrecos} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="precos-grid">
+                {TIPOS_VEICULO.map(t => (
+                  <div className="form-group" key={t.id}>
+                    <label className="form-label">{t.icon} {t.label} (R$/hora)</label>
+                    <input className="form-control" type="number" step="0.01" min="0"
+                      placeholder={`Padrão: R$ ${Number(cfgValorHora || 0).toFixed(2)}`}
+                      value={precos[t.id]} onChange={e => setPrecos(p => ({ ...p, [t.id]: e.target.value }))} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn btn-success" type="submit" disabled={salvandoPrecos}>
+                  {salvandoPrecos
+                    ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Salvando...</>
+                    : '💾 Salvar preços'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="card" style={{ padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
               <h2 style={{ fontWeight: 600, fontSize: '1rem' }}>Gerenciar vagas</h2>
               <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{vagas.length} cadastradas</span>
             </div>
+
+            {resumoVagas.length > 0 && (
+              <div className="resumo-vagas-grid">
+                {resumoVagas.map(r => {
+                  const info = tipoInfo(r.tipoVeiculo);
+                  return (
+                    <div className="resumo-vaga-chip" key={r.tipoVeiculo ?? 'qualquer'}>
+                      <span className="resumo-vaga-chip-label">{info.icon} {info.label}</span>
+                      <span className="resumo-vaga-chip-value">
+                        <span style={{ color: 'var(--green)' }}>{r.livres}</span> livres / {r.total}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <form onSubmit={handleAddVaga} style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: '1 1 140px' }}>
                 <label className="form-label">Código da nova vaga</label>
                 <input className="form-control placa" placeholder="A-01"
                   value={codigoNovaVaga} onChange={e => setCodigoNovaVaga(e.target.value.toUpperCase())} required />
+              </div>
+              <div className="form-group" style={{ flex: '1 1 170px' }}>
+                <label className="form-label">Tipo de veículo aceito</label>
+                <select className="form-control" value={tipoNovaVaga} onChange={e => setTipoNovaVaga(e.target.value)}>
+                  <option value="">🅿 Qualquer tipo</option>
+                  {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+                </select>
               </div>
               <button className="btn btn-primary" type="submit" style={{ height: 44, flexShrink: 0 }}>+ Criar</button>
             </form>
@@ -435,20 +574,53 @@ export default function PainelOperador() {
                   <thead>
                     <tr>
                       <th>Código</th>
+                      <th>Tipo aceito</th>
                       <th>Status</th>
                       <th style={{ textAlign: 'right' }}>Ação</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {vagas.map(v => (
-                      <tr key={v.id}>
-                        <td><span className="placa-badge" style={{ fontSize: '.83rem' }}>{v.codigo}</span></td>
-                        <td><span className={`badge ${v.ocupada ? 'badge-red' : 'badge-green'}`}>{v.ocupada ? 'Ocupada' : 'Livre'}</span></td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDeleteVaga(v.id, v.codigo)} disabled={v.ocupada}>Excluir</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {vagas.map(v => {
+                      const editando = vagaEditando === v.id;
+                      const info = tipoInfo(v.tipoVeiculo);
+                      return (
+                        <tr key={v.id}>
+                          <td>
+                            {editando ? (
+                              <input className="form-control placa" style={{ minWidth: 100, fontSize: '.9rem' }}
+                                value={editCodigo} onChange={e => setEditCodigo(e.target.value.toUpperCase())} />
+                            ) : (
+                              <span className="placa-badge" style={{ fontSize: '.83rem' }}>{v.codigo}</span>
+                            )}
+                          </td>
+                          <td>
+                            {editando ? (
+                              <select className="form-control" style={{ minWidth: 160 }}
+                                value={editTipo} onChange={e => setEditTipo(e.target.value)}>
+                                <option value="">🅿 Qualquer tipo</option>
+                                {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+                              </select>
+                            ) : (
+                              <span className="badge badge-gray">{info.icon} {info.label}</span>
+                            )}
+                          </td>
+                          <td><span className={`badge ${v.ocupada ? 'badge-red' : 'badge-green'}`}>{v.ocupada ? 'Ocupada' : 'Livre'}</span></td>
+                          <td style={{ textAlign: 'right' }}>
+                            {editando ? (
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                <button className="btn btn-ghost btn-sm" onClick={cancelarEdicaoVaga}>Cancelar</button>
+                                <button className="btn btn-success btn-sm" onClick={() => handleSalvarVaga(v.id)}>Salvar</button>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                <button className="btn btn-ghost btn-sm" onClick={() => iniciarEdicaoVaga(v)}>Editar</button>
+                                <button className="btn btn-danger btn-sm" onClick={() => handleDeleteVaga(v.id, v.codigo)} disabled={v.ocupada}>Excluir</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -239,6 +239,13 @@ select.form-control { cursor: pointer; }
 .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .config-grid .span2 { grid-column: 1 / -1; }
 
+.precos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+.resumo-vagas-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.resumo-vaga-chip { flex: 1 1 140px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+.resumo-vaga-chip-label { font-size: .75rem; color: var(--text-secondary); font-weight: 600; }
+.resumo-vaga-chip-value { font-size: .95rem; font-weight: 700; }
+
 .vagas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 10px; }
 .vaga-tile { border-radius: 10px; padding: 12px 6px; text-align: center; cursor: default; transition: transform .15s; }
 .vaga-tile.ocupada { border: 2px solid var(--red);   background: rgba(239,68,68,.06); cursor: pointer; }
@@ -327,6 +334,7 @@ select.form-control { cursor: pointer; }
   /* Config grid */
   .config-grid { grid-template-columns: 1fr; }
   .config-grid .span2 { grid-column: 1; }
+  .precos-grid { grid-template-columns: 1fr; }
 
   /* Ticket de estadia */
   .ticket-price-value { font-size: 2.4rem; }
