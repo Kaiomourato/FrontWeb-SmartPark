@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { getErroMsg } from '../utils/erro';
 
 export default function Registro() {
   const [tipo, setTipo] = useState('motorista'); // 'motorista' | 'estacionamento'
@@ -77,7 +78,7 @@ export default function Registro() {
         navigate('/login');
       }
     } catch (err) {
-      toast.error('Erro ao cadastrar', err.response?.data || 'Verifique os dados e tente novamente.');
+      toast.error('Erro ao cadastrar', getErroMsg(err, 'Verifique os dados e tente novamente.'));
     } finally {
       setLoading(false);
     }

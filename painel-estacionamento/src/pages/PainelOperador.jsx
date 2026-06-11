@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { getErroMsg } from '../utils/erro';
 import PainelLayout from '../components/PainelLayout';
 import BarChart from '../components/BarChart';
 
@@ -94,18 +95,21 @@ export default function PainelOperador() {
       setCfgNome(estac.nome || '');
       setCfgValorHora(estac.valorHora || '');
       setCfgEndereco(estac.endereco || '');
-
-      const [vagasR, estadiasR] = await Promise.all([
-        api.get('/vagas'),
-        api.get('/estadias/ativas'),
-      ]);
-      setVagas(vagasR.data);
-      setEstadiasAtivas(estadiasR.data);
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
+
+    // Chamadas independentes: uma falhar não pode impedir a outra de ser exibida.
+    const [vagasR, estadiasR] = await Promise.allSettled([
+      api.get('/vagas'),
+      api.get('/estadias/ativas'),
+    ]);
+    if (vagasR.status === 'fulfilled') setVagas(vagasR.value.data);
+    else console.error(vagasR.reason);
+    if (estadiasR.status === 'fulfilled') setEstadiasAtivas(estadiasR.value.data);
+    else console.error(estadiasR.reason);
+
+    setLoading(false);
   }, []);
 
   const carregarResumoVagas = useCallback(async () => {
@@ -160,7 +164,7 @@ export default function PainelOperador() {
       setPlacaEntrada('');
       carregar();
     } catch (err) {
-      toast.error('Erro', err.response?.data?.message || 'Veículo não encontrado ou vaga ocupada.');
+      toast.error('Erro', getErroMsg(err, 'Veículo não encontrado ou vaga ocupada.'));
     }
   };
 
@@ -172,7 +176,7 @@ export default function PainelOperador() {
       setCodigoCheckin('');
       carregar();
     } catch (err) {
-      toast.error('Código inválido', err.response?.data?.message || 'Código não encontrado ou expirado.');
+      toast.error('Código inválido', getErroMsg(err, 'Código não encontrado ou expirado.'));
     }
   };
 
@@ -192,7 +196,7 @@ export default function PainelOperador() {
       toast.success('Reserva cancelada', 'O motorista foi notificado.');
       carregar();
     } catch (err) {
-      toast.error('Erro', err.response?.data?.message || 'Não foi possível cancelar a reserva.');
+      toast.error('Erro', getErroMsg(err, 'Não foi possível cancelar a reserva.'));
     }
   };
 
@@ -206,7 +210,7 @@ export default function PainelOperador() {
       carregar();
       carregarResumoVagas();
     } catch (err) {
-      toast.error('Erro', err.response?.data?.message || 'Código pode já existir.');
+      toast.error('Erro', getErroMsg(err, 'Código pode já existir.'));
     }
   };
 
@@ -242,7 +246,7 @@ export default function PainelOperador() {
       carregar();
       carregarResumoVagas();
     } catch (err) {
-      toast.error('Erro', err.response?.data?.message || 'Não foi possível atualizar a vaga.');
+      toast.error('Erro', getErroMsg(err, 'Não foi possível atualizar a vaga.'));
     }
   };
 
@@ -275,7 +279,7 @@ export default function PainelOperador() {
       toast.success('Preços salvos!', '');
       carregarPrecos();
     } catch (err) {
-      toast.error('Erro ao salvar preços', err.response?.data?.message || '');
+      toast.error('Erro ao salvar preços', getErroMsg(err, 'Não foi possível salvar os preços.'));
     } finally {
       setSalvandoPrecos(false);
     }
@@ -398,7 +402,7 @@ export default function PainelOperador() {
               <div className="empty-state">
                 <div className="empty-state-icon">🅿</div>
                 <h3>Nenhuma vaga cadastrada</h3>
-                <p>Vá em Configurações para adicionar vagas</p>
+                <p>Vá em Gerenciar vagas para adicionar a primeira vaga</p>
               </div>
             ) : (
               <div className="vagas-grid">
@@ -434,7 +438,7 @@ export default function PainelOperador() {
               <div className="empty-state" style={{ padding: '20px 0' }}>
                 <div className="empty-state-icon">🅿</div>
                 <h3>Nenhuma vaga cadastrada</h3>
-                <p>Vá em Configurações para adicionar vagas</p>
+                <p>Vá em Gerenciar vagas para adicionar a primeira vaga</p>
               </div>
             ) : vagasLivresPatio.length === 0 ? (
               <div className="empty-state" style={{ padding: '20px 0' }}>

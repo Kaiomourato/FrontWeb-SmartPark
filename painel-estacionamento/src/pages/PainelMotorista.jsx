@@ -7,6 +7,7 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { getErroMsg } from '../utils/erro';
 import PainelLayout from '../components/PainelLayout';
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -266,7 +267,7 @@ export default function PainelMotorista() {
       toast.success('Reserva confirmada!', `Código gerado para ${est.nome}`);
       buscarEstadia();
     } catch (err) {
-      toast.error('Erro na reserva', err.response?.data?.message || 'Tente novamente.');
+      toast.error('Erro na reserva', getErroMsg(err, 'Não foi possível concluir a reserva. Tente novamente.'));
     }
   };
 
@@ -285,7 +286,7 @@ export default function PainelMotorista() {
       setMostrarForm(false);
       buscarDados();
     } catch (err) {
-      toast.error('Erro', err.response?.data?.message || 'Placa pode já estar cadastrada.');
+      toast.error('Erro', getErroMsg(err, 'Placa pode já estar cadastrada.'));
     }
   };
 

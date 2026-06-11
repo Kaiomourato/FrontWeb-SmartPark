@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { getErroMsg } from '../utils/erro';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -26,7 +27,7 @@ export default function Login() {
         (data.role === 'USER' ? '/painel-motorista' : '/painel-operador');
       navigate(destino, { replace: true });
     } catch (err) {
-      toast.error('Falha no login', err.response?.data?.message || 'E-mail ou senha incorretos.');
+      toast.error('Falha no login', getErroMsg(err, 'E-mail ou senha incorretos.'));
     } finally {
       setLoading(false);
     }
