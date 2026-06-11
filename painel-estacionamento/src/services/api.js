@@ -2,7 +2,9 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: 'https://estacionamento-rotativo-l65y.onrender.com',
-  timeout: 15000,
+  // 60s para acomodar o "cold start" do plano gratuito do Render, que pode
+  // levar dezenas de segundos para responder à primeira requisição.
+  timeout: 60000,
 });
 
 api.interceptors.request.use((config) => {
@@ -19,7 +21,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const url = err.config?.url || '';
+    // Login/registro retornam 401/400 para credenciais inválidas: isso não
+    // significa que a sessão expirou, então não deve deslogar nem redirecionar.
+    const isAuthRequest = url.includes('/auth/login') || url.includes('/auth/register');
+    if (err.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem('sp_user');
       window.location.href = '/login';
     }

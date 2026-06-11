@@ -55,7 +55,7 @@ const NAV = [{
 const tiposIcon = { CARRO: '🚗', MOTO: '🏍️', CAMINHONETE: '🛻' };
 
 /* ── Modal reserva ── */
-function ModalReserva({ est, vagas, veiculos, onConfirm, onClose, onIrParaVeiculos }) {
+function ModalReserva({ est, vagas, veiculos, onConfirm, onClose, onIrParaVeiculos, enviando }) {
   const [veiculoId, setVeiculoId] = useState('');
   const [vagaId, setVagaId] = useState('');
   const [previsaoChegada, setPrevisaoChegada] = useState('');
@@ -140,9 +140,13 @@ function ModalReserva({ est, vagas, veiculos, onConfirm, onClose, onIrParaVeicul
           </p>
         </div>
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-ghost" onClick={onClose} disabled={enviando}>Cancelar</button>
           {!semVeiculos && compativeis.length > 0 && (
-            <button className="btn btn-primary" form="form-reserva" type="submit">Confirmar reserva</button>
+            <button className="btn btn-primary" form="form-reserva" type="submit" disabled={enviando}>
+              {enviando
+                ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Confirmando...</>
+                : 'Confirmar reserva'}
+            </button>
           )}
         </div>
       </div>
@@ -197,6 +201,9 @@ export default function PainelMotorista() {
   const [modalCodigo, setModalCodigo] = useState(null);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [formV, setFormV] = useState({ placa: '', modelo: '', cor: '', tipo: 'CARRO' });
+  const [enviandoReserva, setEnviandoReserva] = useState(false);
+  const [salvandoVeiculo, setSalvandoVeiculo] = useState(false);
+  const [removendoVeiculoId, setRemovendoVeiculoId] = useState(null);
 
   const toast = useToast();
 
@@ -253,6 +260,7 @@ export default function PainelMotorista() {
   }, []);
 
   const confirmarReserva = async (est, vagaId, veiculoId, previsaoChegada) => {
+    setEnviandoReserva(true);
     try {
       const vaga = vagasEstac.find(v => String(v.id) === String(vagaId));
       const params = { vagaId, veiculoId };
@@ -268,6 +276,8 @@ export default function PainelMotorista() {
       buscarEstadia();
     } catch (err) {
       toast.error('Erro na reserva', getErroMsg(err, 'Não foi possível concluir a reserva. Tente novamente.'));
+    } finally {
+      setEnviandoReserva(false);
     }
   };
 
@@ -279,6 +289,7 @@ export default function PainelMotorista() {
 
   const handleAddVeiculo = async (e) => {
     e.preventDefault();
+    setSalvandoVeiculo(true);
     try {
       await api.post('/veiculos', { ...formV, placa: formV.placa.toUpperCase(), ativo: true });
       toast.success('Veículo cadastrado!', formV.placa.toUpperCase());
@@ -287,16 +298,21 @@ export default function PainelMotorista() {
       buscarDados();
     } catch (err) {
       toast.error('Erro', getErroMsg(err, 'Placa pode já estar cadastrada.'));
+    } finally {
+      setSalvandoVeiculo(false);
     }
   };
 
   const handleRemoverVeiculo = async (id, placa) => {
     if (!window.confirm(`Remover veículo ${placa}?`)) return;
+    setRemovendoVeiculoId(id);
     try {
       await api.delete(`/veiculos/${id}`);
       toast.success('Veículo removido', placa);
       buscarDados();
-    } catch { toast.error('Erro', 'Não foi possível remover.'); }
+    } catch { toast.error('Erro', 'Não foi possível remover.'); } finally {
+      setRemovendoVeiculoId(null);
+    }
   };
 
   const valorAtual = () => {
@@ -547,8 +563,8 @@ export default function PainelMotorista() {
                       <div className="veiculo-form-grid">
                         <div className="form-group">
                           <label className="form-label">Placa</label>
-                          <input className="form-control placa" placeholder="ABC1234"
-                            value={formV.placa} onChange={e => setFormV(f => ({ ...f, placa: e.target.value }))} required />
+                          <input className="form-control placa" placeholder="ABC1234" maxLength={8}
+                            value={formV.placa} onChange={e => setFormV(f => ({ ...f, placa: e.target.value.toUpperCase() }))} required />
                         </div>
                         <div className="form-group">
                           <label className="form-label">Tipo</label>
@@ -569,7 +585,11 @@ export default function PainelMotorista() {
                             value={formV.cor} onChange={e => setFormV(f => ({ ...f, cor: e.target.value }))} required />
                         </div>
                       </div>
-                      <button className="btn btn-success btn-full" type="submit">Salvar veículo</button>
+                      <button className="btn btn-success btn-full" type="submit" disabled={salvandoVeiculo}>
+                        {salvandoVeiculo
+                          ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Salvando...</>
+                          : 'Salvar veículo'}
+                      </button>
                     </form>
                   )}
 
@@ -593,8 +613,11 @@ export default function PainelMotorista() {
                           </div>
                           <button className="btn btn-ghost btn-sm"
                             onClick={() => handleRemoverVeiculo(v.id, v.placa)}
+                            disabled={removendoVeiculoId === v.id}
                             style={{ color: 'var(--red)', borderColor: 'var(--red)', flexShrink: 0 }}>
-                            Remover
+                            {removendoVeiculoId === v.id
+                              ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Removendo...</>
+                              : 'Remover'}
                           </button>
                         </div>
                       ))}
@@ -666,6 +689,7 @@ export default function PainelMotorista() {
           est={modalReserva} vagas={vagasEstac} veiculos={veiculos}
           onConfirm={confirmarReserva} onClose={() => setModalReserva(null)}
           onIrParaVeiculos={irParaVeiculos}
+          enviando={enviandoReserva}
         />
       )}
       {modalCodigo && (

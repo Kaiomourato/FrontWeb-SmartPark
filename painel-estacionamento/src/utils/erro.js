@@ -1,5 +1,12 @@
 // Padrões que indicam mensagens técnicas (stack trace, SQL, JDBC) que não devem ir para o usuário.
-const PADROES_TECNICOS = [/jdbc/i, /\bsql\b/i, /exception/i, /org\.(springframework|hibernate)/i];
+const PADROES_TECNICOS = [
+  /jdbc/i,
+  /\bsql\b/i,
+  /exception/i,
+  /org\.(springframework|hibernate)/i,
+  /failed to convert/i,
+  /required type/i,
+];
 
 // Extrai uma mensagem de erro segura (sempre string) de uma resposta da API,
 // descartando objetos e mensagens técnicas cruas em favor do fallback.

@@ -78,6 +78,10 @@ export default function PainelOperador() {
   const [precos, setPrecos] = useState({ CARRO: '', MOTO: '', CAMINHONETE: '' });
   const [salvandoPrecos, setSalvandoPrecos] = useState(false);
 
+  const [enviandoEntrada, setEnviandoEntrada] = useState(false);
+  const [enviandoCheckin, setEnviandoCheckin] = useState(false);
+  const [processandoEstadiaId, setProcessandoEstadiaId] = useState(null);
+
   const [relatorio, setRelatorio] = useState(null);
 
   const toast = useToast();
@@ -158,6 +162,7 @@ export default function PainelOperador() {
     e.preventDefault();
     if (!vagaAtual) { toast.error('Nenhuma vaga livre', 'O pátio está lotado no momento.'); return; }
     if (!placaEntrada.trim()) { toast.error('Informe a placa', ''); return; }
+    setEnviandoEntrada(true);
     try {
       await api.post('/estadias', null, { params: { placa: placaEntrada.toUpperCase(), vagaId: vagaAtual } });
       toast.success('Entrada registrada!', `Placa ${placaEntrada.toUpperCase()} alocada.`);
@@ -165,11 +170,14 @@ export default function PainelOperador() {
       carregar();
     } catch (err) {
       toast.error('Erro', getErroMsg(err, 'Veículo não encontrado ou vaga ocupada.'));
+    } finally {
+      setEnviandoEntrada(false);
     }
   };
 
   const handleCheckin = async (e) => {
     e.preventDefault();
+    setEnviandoCheckin(true);
     try {
       await api.put('/estadias/checkin', null, { params: { codigo: codigoCheckin.toUpperCase() } });
       toast.success('Check-in confirmado!', 'Entrada registrada com sucesso.');
@@ -177,26 +185,34 @@ export default function PainelOperador() {
       carregar();
     } catch (err) {
       toast.error('Código inválido', getErroMsg(err, 'Código não encontrado ou expirado.'));
+    } finally {
+      setEnviandoCheckin(false);
     }
   };
 
   const handleFinalizar = async (id, placa) => {
     if (!window.confirm(`Encerrar estadia da placa ${placa}?`)) return;
+    setProcessandoEstadiaId(id);
     try {
       const { data } = await api.put(`/estadias/${id}/finalizar`);
       toast.success('Estadia encerrada!', `Cobrar R$ ${data.valor?.toFixed(2)} do cliente.`);
       carregar();
-    } catch { toast.error('Erro', 'Não foi possível encerrar.'); }
+    } catch { toast.error('Erro', 'Não foi possível encerrar.'); } finally {
+      setProcessandoEstadiaId(null);
+    }
   };
 
   const handleCancelarReserva = async (id, placa) => {
     if (!window.confirm(`Cancelar a reserva de ${placa || 'este veículo'}? O motorista será notificado.`)) return;
+    setProcessandoEstadiaId(id);
     try {
       await api.put(`/estadias/${id}/cancelar`);
       toast.success('Reserva cancelada', 'O motorista foi notificado.');
       carregar();
     } catch (err) {
       toast.error('Erro', getErroMsg(err, 'Não foi possível cancelar a reserva.'));
+    } finally {
+      setProcessandoEstadiaId(null);
     }
   };
 
@@ -462,7 +478,11 @@ export default function PainelOperador() {
                     })}
                   </select>
                 </div>
-                <button className="btn btn-primary" type="submit">⬆ Liberar cancela</button>
+                <button className="btn btn-primary" type="submit" disabled={enviandoEntrada}>
+                  {enviandoEntrada
+                    ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Registrando...</>
+                    : '⬆ Liberar cancela'}
+                </button>
               </form>
             )}
           </div>
@@ -508,8 +528,10 @@ export default function PainelOperador() {
                           {est.pendente ? (
                             <span className="badge badge-amber">⏳ Aguardando check-in</span>
                           ) : (
-                            <button className="btn btn-success btn-sm" onClick={() => handleFinalizar(est.id, est.veiculo?.placa)}>
-                              Encerrar
+                            <button className="btn btn-success btn-sm" onClick={() => handleFinalizar(est.id, est.veiculo?.placa)} disabled={processandoEstadiaId === est.id}>
+                              {processandoEstadiaId === est.id
+                                ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Encerrando...</>
+                                : 'Encerrar'}
                             </button>
                           )}
                         </td>
@@ -677,8 +699,10 @@ export default function PainelOperador() {
                       <td style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{formatarDataHora(est.criadoEm)}</td>
                       <td className="hide-mobile" style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{formatarDataHora(est.previsaoChegada)}</td>
                       <td style={{ textAlign: 'right' }}>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleCancelarReserva(est.id, est.veiculo?.placa)}>
-                          Cancelar
+                        <button className="btn btn-danger btn-sm" onClick={() => handleCancelarReserva(est.id, est.veiculo?.placa)} disabled={processandoEstadiaId === est.id}>
+                          {processandoEstadiaId === est.id
+                            ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Cancelando...</>
+                            : 'Cancelar'}
                         </button>
                       </td>
                     </tr>
@@ -709,7 +733,11 @@ export default function PainelOperador() {
                   placeholder="XXXXXX" maxLength={8}
                   value={codigoCheckin} onChange={e => setCodigoCheckin(e.target.value.toUpperCase())} required />
               </div>
-              <button className="btn btn-primary btn-lg btn-full" type="submit">✓ Confirmar check-in</button>
+              <button className="btn btn-primary btn-lg btn-full" type="submit" disabled={enviandoCheckin}>
+                {enviandoCheckin
+                  ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Validando...</>
+                  : '✓ Confirmar check-in'}
+              </button>
             </form>
           </div>
           <div className="card" style={{ padding: 18, marginTop: 14, borderLeft: '3px solid var(--amber)' }}>
