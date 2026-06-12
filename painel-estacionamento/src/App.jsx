@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import ConexaoBanner from './components/ConexaoBanner';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Registro from './pages/Registro';
@@ -34,6 +35,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
+          <ConexaoBanner />
           <AppRoutes />
         </ToastProvider>
       </AuthProvider>

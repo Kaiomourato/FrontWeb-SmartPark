@@ -1,38 +1,40 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { getErroMsg } from '../utils/erro';
 import PainelLayout from '../components/PainelLayout';
 import BarChart from '../components/BarChart';
+import ModalConfirm from '../components/ModalConfirm';
+import Icon from '../components/Icon';
 
 const NAV = [
   {
     label: 'Operação',
     items: [
-      { id: 'dashboard',  icon: '📊', label: 'Dashboard' },
-      { id: 'patrio',     icon: '🚗', label: 'Controle de pátio' },
-      { id: 'checkin',    icon: '🔍', label: 'Validar check-in' },
+      { id: 'dashboard',  icon: <Icon name="gauge" size={18} />,    label: 'Dashboard' },
+      { id: 'patrio',     icon: <Icon name="car" size={18} />,      label: 'Controle de pátio' },
+      { id: 'checkin',    icon: <Icon name="search" size={18} />,   label: 'Validar check-in' },
     ],
   },
   {
     label: 'Gestão',
     items: [
-      { id: 'vagas',         icon: '🅿️', label: 'Gerenciar vagas' },
-      { id: 'agendadas',     icon: '📅', label: 'Vagas agendadas' },
-      { id: 'historico',     icon: '📋', label: 'Histórico' },
-      { id: 'configuracoes', icon: '⚙️', label: 'Configurações' },
+      { id: 'vagas',         icon: <Icon name="parking" size={18} />,  label: 'Gerenciar vagas' },
+      { id: 'agendadas',     icon: <Icon name="calendar" size={18} />, label: 'Vagas agendadas' },
+      { id: 'historico',     icon: <Icon name="list" size={18} />,     label: 'Histórico' },
+      { id: 'configuracoes', icon: <Icon name="gear" size={18} />,     label: 'Configurações' },
     ],
   },
 ];
 
 const TIPOS_VEICULO = [
-  { id: 'CARRO', icon: '🚗', label: 'Carro' },
-  { id: 'MOTO', icon: '🏍️', label: 'Moto' },
-  { id: 'CAMINHONETE', icon: '🛻', label: 'Caminhonete' },
+  { id: 'CARRO', icon: 'car', label: 'Carro' },
+  { id: 'MOTO', icon: 'moto', label: 'Moto' },
+  { id: 'CAMINHONETE', icon: 'truck', label: 'Caminhonete' },
 ];
 
 function tipoInfo(tipoVeiculo) {
-  return TIPOS_VEICULO.find(t => t.id === tipoVeiculo) || { icon: '🅿', label: 'Qualquer tipo' };
+  return TIPOS_VEICULO.find(t => t.id === tipoVeiculo) || { icon: 'parking', label: 'Qualquer tipo' };
 }
 
 function tempoDecorrido(entrada) {
@@ -41,6 +43,16 @@ function tempoDecorrido(entrada) {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   return h > 0 ? `${h}h ${m}min` : `${m}min`;
+}
+
+// Classifica o tempo de permanência para destacar vagas que estão "girando"
+// devagar — sinal visual de prioridade para o operador no pátio.
+function classeTempo(entrada) {
+  if (!entrada) return '';
+  const horas = (Date.now() - new Date(entrada).getTime()) / 3600000;
+  if (horas >= 2) return 'tempo-muito-alto';
+  if (horas >= 1) return 'tempo-alto';
+  return '';
 }
 
 function formatarDataHora(data) {
@@ -83,8 +95,10 @@ export default function PainelOperador() {
   const [processandoEstadiaId, setProcessandoEstadiaId] = useState(null);
 
   const [relatorio, setRelatorio] = useState(null);
+  const [confirmacao, setConfirmacao] = useState(null);
 
   const toast = useToast();
+  const checkinInputRef = useRef(null);
 
   useEffect(() => {
     const t = setInterval(() => setVagas(v => [...v]), 30000);
@@ -177,21 +191,34 @@ export default function PainelOperador() {
 
   const handleCheckin = async (e) => {
     e.preventDefault();
+    if (enviandoCheckin) return;
     setEnviandoCheckin(true);
     try {
       await api.put('/estadias/checkin', null, { params: { codigo: codigoCheckin.toUpperCase() } });
+      // Vibração curta de confirmação — feedback sensorial pro operador, que
+      // geralmente está de olho no carro/fila e não na tela.
+      navigator.vibrate?.(80);
       toast.success('Check-in confirmado!', 'Entrada registrada com sucesso.');
       setCodigoCheckin('');
       carregar();
     } catch (err) {
+      navigator.vibrate?.([60, 50, 60]);
       toast.error('Código inválido', getErroMsg(err, 'Código não encontrado ou expirado.'));
+      checkinInputRef.current?.select();
     } finally {
       setEnviandoCheckin(false);
     }
   };
 
-  const handleFinalizar = async (id, placa) => {
-    if (!window.confirm(`Encerrar estadia da placa ${placa}?`)) return;
+  // "Modo cancela": ao digitar um código de 6 caracteres, confirma automaticamente
+  // — ganha 1-2s por veículo, relevante em horário de pico.
+  useEffect(() => {
+    if (codigoCheckin.length === 6 && !enviandoCheckin) {
+      handleCheckin({ preventDefault: () => {} });
+    }
+  }, [codigoCheckin]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFinalizar = async (id) => {
     setProcessandoEstadiaId(id);
     try {
       const { data } = await api.put(`/estadias/${id}/finalizar`);
@@ -202,8 +229,17 @@ export default function PainelOperador() {
     }
   };
 
-  const handleCancelarReserva = async (id, placa) => {
-    if (!window.confirm(`Cancelar a reserva de ${placa || 'este veículo'}? O motorista será notificado.`)) return;
+  const confirmarFinalizar = (id, placa) => {
+    setConfirmacao({
+      titulo: 'Encerrar estadia',
+      mensagem: `Encerrar a estadia da placa ${placa}? O valor final será calculado no momento da confirmação.`,
+      corConfirmar: 'success',
+      textoConfirmar: 'Encerrar',
+      onConfirmar: () => { setConfirmacao(null); handleFinalizar(id); },
+    });
+  };
+
+  const handleCancelarReserva = async (id) => {
     setProcessandoEstadiaId(id);
     try {
       await api.put(`/estadias/${id}/cancelar`);
@@ -214,6 +250,16 @@ export default function PainelOperador() {
     } finally {
       setProcessandoEstadiaId(null);
     }
+  };
+
+  const confirmarCancelarReserva = (id, placa) => {
+    setConfirmacao({
+      titulo: 'Cancelar reserva',
+      mensagem: `Cancelar a reserva de ${placa || 'este veículo'}? O motorista será notificado.`,
+      corConfirmar: 'danger',
+      textoConfirmar: 'Cancelar reserva',
+      onConfirmar: () => { setConfirmacao(null); handleCancelarReserva(id); },
+    });
   };
 
   const handleAddVaga = async (e) => {
@@ -231,13 +277,22 @@ export default function PainelOperador() {
   };
 
   const handleDeleteVaga = async (id, codigo) => {
-    if (!window.confirm(`Excluir vaga ${codigo}?`)) return;
     try {
       await api.delete(`/vagas/${id}`);
       toast.success('Vaga removida', `Vaga ${codigo} excluída.`);
       carregar();
       carregarResumoVagas();
     } catch { toast.error('Erro', 'Vaga pode estar ocupada.'); }
+  };
+
+  const confirmarDeleteVaga = (id, codigo) => {
+    setConfirmacao({
+      titulo: 'Excluir vaga',
+      mensagem: `Excluir a vaga ${codigo}? Essa ação não pode ser desfeita.`,
+      corConfirmar: 'danger',
+      textoConfirmar: 'Excluir',
+      onConfirmar: () => { setConfirmacao(null); handleDeleteVaga(id, codigo); },
+    });
   };
 
   const iniciarEdicaoVaga = (vaga) => {
@@ -282,7 +337,7 @@ export default function PainelOperador() {
     e.preventDefault();
     const itens = TIPOS_VEICULO
       .filter(t => precos[t.id] !== '' && precos[t.id] !== null && precos[t.id] !== undefined)
-      .map(t => ({ tipoVeiculo: t.id, valorHora: parseFloat(precos[t.id]) }));
+      .map(t => ({ tipoVeiculo: t.id, valorHora: parseFloat(String(precos[t.id]).replace(',', '.')) }));
 
     if (itens.length === 0) {
       toast.info('Nada para salvar', 'Defina ao menos um valor personalizado, ou deixe em branco para usar o padrão.');
@@ -306,7 +361,7 @@ export default function PainelOperador() {
     if (!estacionamento) return;
     try {
       await api.put(`/estacionamentos/${estacionamento.id}`, {
-        ...estacionamento, nome: cfgNome, valorHora: parseFloat(cfgValorHora), endereco: cfgEndereco,
+        ...estacionamento, nome: cfgNome, valorHora: parseFloat(String(cfgValorHora).replace(',', '.')), endereco: cfgEndereco,
       });
       toast.success('Configurações salvas!', '');
       carregar();
@@ -339,13 +394,13 @@ export default function PainelOperador() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div className="stats-grid">
             {[
-              { icon: '🚗', label: 'Vagas ocupadas', value: vagasOcupadas, sub: `de ${vagas.length} totais`, color: vagasOcupadas > 0 ? 'var(--blue-light)' : undefined },
-              { icon: '🟢', label: 'Vagas livres',   value: vagasLivres,  sub: 'disponíveis agora',  color: 'var(--green)' },
-              { icon: '⏱️', label: 'Estadias ativas', value: estadiasAtivas.length, sub: 'em andamento' },
-              { icon: '📅', label: 'Vagas agendadas', value: reservasPendentes.length, sub: 'aguardando chegada' },
+              { icon: 'car',      acc: 'acc-magenta', label: 'Vagas ocupadas', value: vagasOcupadas, sub: `de ${vagas.length} totais`, color: vagasOcupadas > 0 ? 'var(--violet-light)' : undefined },
+              { icon: 'check',    acc: 'acc-green',   label: 'Vagas livres',   value: vagasLivres,  sub: 'disponíveis agora',  color: 'var(--green)' },
+              { icon: 'clock',    acc: '',            label: 'Estadias ativas', value: estadiasAtivas.length, sub: 'em andamento' },
+              { icon: 'calendar', acc: 'acc-amber',   label: 'Vagas agendadas', value: reservasPendentes.length, sub: 'aguardando chegada' },
             ].map((s, i) => (
               <div className="stat-card" key={i}>
-                <div className="stat-card-icon">{s.icon}</div>
+                <div className={`stat-card-icon ${s.acc}`}><Icon name={s.icon} size={18} /></div>
                 <div className="stat-card-label">{s.label}</div>
                 <div className="stat-card-value" style={{ color: s.color, fontSize: s.small ? '1.4rem' : undefined }}>{s.value}</div>
                 <div className="stat-card-sub">{s.sub}</div>
@@ -355,13 +410,13 @@ export default function PainelOperador() {
 
           <div className="stats-grid">
             {[
-              { icon: '💰', label: 'Faturamento em aberto', value: faturamentoAberto, sub: 'nas estadias ativas' },
-              { icon: '🗓️', label: 'Faturamento da semana', value: relatorio?.faturamento?.semana, sub: 'últimos 7 dias' },
-              { icon: '📆', label: 'Faturamento do mês', value: relatorio?.faturamento?.mes, sub: 'mês atual' },
-              { icon: '📈', label: 'Faturamento anual', value: relatorio?.faturamento?.ano, sub: 'ano atual' },
+              { icon: 'wallet',   acc: 'acc-green',   label: 'Faturamento em aberto', value: faturamentoAberto, sub: 'nas estadias ativas' },
+              { icon: 'calendar', acc: 'acc-amber',   label: 'Faturamento da semana', value: relatorio?.faturamento?.semana, sub: 'últimos 7 dias' },
+              { icon: 'barChart', acc: 'acc-magenta', label: 'Faturamento do mês', value: relatorio?.faturamento?.mes, sub: 'mês atual' },
+              { icon: 'trendUp',  acc: 'acc-orange',  label: 'Faturamento anual', value: relatorio?.faturamento?.ano, sub: 'ano atual' },
             ].map((s, i) => (
               <div className="stat-card" key={i}>
-                <div className="stat-card-icon">{s.icon}</div>
+                <div className={`stat-card-icon ${s.acc}`}><Icon name={s.icon} size={18} /></div>
                 <div className="stat-card-label">{s.label}</div>
                 <div className="stat-card-value" style={{ color: 'var(--green)', fontSize: '1.4rem' }}>
                   {s.value != null ? `R$ ${Number(s.value).toFixed(2)}` : '—'}
@@ -384,7 +439,7 @@ export default function PainelOperador() {
               />
             ) : (
               <div className="empty-state" style={{ padding: '20px 0' }}>
-                <div className="empty-state-icon">📊</div>
+                <div className="empty-state-icon"><Icon name="barChart" size={32} /></div>
                 <h3>Sem dados de fluxo ainda</h3>
                 <p>O gráfico aparecerá assim que houver movimentação registrada.</p>
               </div>
@@ -402,7 +457,7 @@ export default function PainelOperador() {
               />
             ) : (
               <div className="empty-state" style={{ padding: '20px 0' }}>
-                <div className="empty-state-icon">📈</div>
+                <div className="empty-state-icon"><Icon name="trendUp" size={32} /></div>
                 <h3>Sem dados de faturamento ainda</h3>
                 <p>O gráfico aparecerá assim que houver estadias finalizadas.</p>
               </div>
@@ -416,7 +471,7 @@ export default function PainelOperador() {
             </div>
             {vagas.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-state-icon">🅿</div>
+                <div className="empty-state-icon"><Icon name="parking" size={32} /></div>
                 <h3>Nenhuma vaga cadastrada</h3>
                 <p>Vá em Gerenciar vagas para adicionar a primeira vaga</p>
               </div>
@@ -424,13 +479,15 @@ export default function PainelOperador() {
               <div className="vagas-grid">
                 {vagas.filter(v => v.ativo !== false).map(v => {
                   const estadia = estadiasAtivas.find(e => e.vaga?.id === v.id);
+                  const tempoClasse = estadia ? classeTempo(estadia.entrada) : '';
                   return (
-                    <div key={v.id} className={`vaga-tile ${v.ocupada ? 'ocupada' : 'livre'}`}
+                    <div key={v.id} className={`vaga-tile ${v.ocupada ? 'ocupada' : 'livre'} ${tempoClasse}`}
                       title={estadia ? `${estadia.veiculo?.placa} — ${tempoDecorrido(estadia.entrada)}` : 'Livre'}
                       onClick={() => v.ocupada && setAba('patrio')}>
-                      <div className="vaga-tile-icon">{v.ocupada ? '🚗' : '🅿'}</div>
+                      <div className="vaga-tile-icon"><Icon name={v.ocupada ? 'car' : 'parking'} size={20} /></div>
                       <div className="vaga-tile-code" style={{ color: v.ocupada ? 'var(--red)' : 'var(--green)' }}>{v.codigo}</div>
                       {estadia && <div className="vaga-tile-placa">{estadia.veiculo?.placa}</div>}
+                      {estadia && <div className="vaga-tile-tempo">{tempoDecorrido(estadia.entrada)}</div>}
                     </div>
                   );
                 })}
@@ -452,13 +509,13 @@ export default function PainelOperador() {
             </div>
             {vagas.length === 0 ? (
               <div className="empty-state" style={{ padding: '20px 0' }}>
-                <div className="empty-state-icon">🅿</div>
+                <div className="empty-state-icon"><Icon name="parking" size={32} /></div>
                 <h3>Nenhuma vaga cadastrada</h3>
                 <p>Vá em Gerenciar vagas para adicionar a primeira vaga</p>
               </div>
             ) : vagasLivresPatio.length === 0 ? (
               <div className="empty-state" style={{ padding: '20px 0' }}>
-                <div className="empty-state-icon">🚫</div>
+                <div className="empty-state-icon"><Icon name="blocked" size={32} /></div>
                 <h3>Pátio lotado</h3>
                 <p>Não há vagas livres para registrar uma nova entrada agora.</p>
               </div>
@@ -474,14 +531,14 @@ export default function PainelOperador() {
                   <select className="form-control" value={vagaAtual} onChange={e => setVagaSelecionada(e.target.value)} required>
                     {vagasLivresPatio.map(v => {
                       const info = tipoInfo(v.tipoVeiculo);
-                      return <option key={v.id} value={v.id}>{info.icon} Vaga {v.codigo} · {info.label}</option>;
+                      return <option key={v.id} value={v.id}>Vaga {v.codigo} · {info.label}</option>;
                     })}
                   </select>
                 </div>
                 <button className="btn btn-primary" type="submit" disabled={enviandoEntrada}>
                   {enviandoEntrada
                     ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Registrando...</>
-                    : '⬆ Liberar cancela'}
+                    : <><Icon name="arrowUp" size={15} /> Liberar cancela</>}
                 </button>
               </form>
             )}
@@ -493,7 +550,7 @@ export default function PainelOperador() {
             </h2>
             {estadiasAtivas.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-state-icon">🏁</div>
+                <div className="empty-state-icon"><Icon name="flag" size={32} /></div>
                 <h3>Pátio vazio</h3>
                 <p>Nenhum veículo registrado no momento</p>
               </div>
@@ -526,9 +583,11 @@ export default function PainelOperador() {
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           {est.pendente ? (
-                            <span className="badge badge-amber">⏳ Aguardando check-in</span>
+                            <span className="badge badge-amber" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                              <Icon name="hourglass" size={12} /> Aguardando check-in
+                            </span>
                           ) : (
-                            <button className="btn btn-success btn-sm" onClick={() => handleFinalizar(est.id, est.veiculo?.placa)} disabled={processandoEstadiaId === est.id}>
+                            <button className="btn btn-success btn-sm" onClick={() => confirmarFinalizar(est.id, est.veiculo?.placa)} disabled={processandoEstadiaId === est.id}>
                               {processandoEstadiaId === est.id
                                 ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Encerrando...</>
                                 : 'Encerrar'}
@@ -556,7 +615,7 @@ export default function PainelOperador() {
                   const info = tipoInfo(r.tipoVeiculo);
                   return (
                     <div className="resumo-vaga-chip" key={r.tipoVeiculo ?? 'qualquer'}>
-                      <span className="resumo-vaga-chip-label">{info.icon} {info.label}</span>
+                      <span className="resumo-vaga-chip-label"><Icon name={info.icon} size={14} /> {info.label}</span>
                       <span className="resumo-vaga-chip-value">
                         <span style={{ color: 'var(--green)' }}>{r.livres}</span> livres / {r.total}
                       </span>
@@ -578,8 +637,8 @@ export default function PainelOperador() {
               <div className="form-group">
                 <label className="form-label">Tipo de veículo aceito</label>
                 <select className="form-control" value={tipoNovaVaga} onChange={e => setTipoNovaVaga(e.target.value)}>
-                  <option value="">🅿 Qualquer tipo</option>
-                  {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+                  <option value="">Qualquer tipo</option>
+                  {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
               </div>
               <button className="btn btn-primary" type="submit">+ Criar vaga</button>
@@ -593,7 +652,7 @@ export default function PainelOperador() {
             </div>
             {vagas.length === 0 ? (
               <div className="empty-state" style={{ padding: '24px 0' }}>
-                <div className="empty-state-icon">🅿</div>
+                <div className="empty-state-icon"><Icon name="parking" size={32} /></div>
                 <h3>Nenhuma vaga cadastrada</h3>
                 <p>Use o formulário acima para criar a primeira vaga</p>
               </div>
@@ -619,8 +678,8 @@ export default function PainelOperador() {
                           <div className="form-group">
                             <label className="form-label">Tipo aceito</label>
                             <select className="form-control" value={editTipo} onChange={e => setEditTipo(e.target.value)}>
-                              <option value="">🅿 Qualquer tipo</option>
-                              {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+                              <option value="">Qualquer tipo</option>
+                              {TIPOS_VEICULO.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                             </select>
                           </div>
                           <div className="vaga-manage-actions">
@@ -634,19 +693,25 @@ export default function PainelOperador() {
                             <span className="placa-badge" style={{ fontSize: '1.05rem' }}>{v.codigo}</span>
                             <span className={`badge ${statusClass}`}>{status}</span>
                           </div>
-                          <span className="badge badge-blue" style={{ alignSelf: 'flex-start' }}>{info.icon} {info.label}</span>
-                          {estadia && (
-                            <div className="vaga-manage-est">
-                              <span className="placa-badge" style={{ fontSize: '.78rem' }}>{estadia.veiculo?.placa}</span>
-                              <span style={{ fontSize: '.75rem', color: 'var(--text-secondary)' }}>{tempoDecorrido(estadia.entrada)}</span>
-                            </div>
-                          )}
+                          <span className="badge badge-blue" style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                            <Icon name={info.icon} size={13} /> {info.label}
+                          </span>
+                          {estadia && (() => {
+                            const tc = classeTempo(estadia.entrada);
+                            const cor = tc === 'tempo-muito-alto' ? 'var(--red)' : tc === 'tempo-alto' ? 'var(--amber)' : 'var(--text-secondary)';
+                            return (
+                              <div className="vaga-manage-est">
+                                <span className="placa-badge" style={{ fontSize: '.78rem' }}>{estadia.veiculo?.placa}</span>
+                                <span style={{ fontSize: '.75rem', color: cor, fontWeight: tc ? 700 : 400 }}>{tempoDecorrido(estadia.entrada)}</span>
+                              </div>
+                            );
+                          })()}
                           <div className="vaga-manage-actions">
                             <button className="btn btn-ghost btn-sm" onClick={() => iniciarEdicaoVaga(v)}>Editar</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleToggleAtivo(v)} disabled={v.ocupada}>
                               {inativa ? 'Ativar' : 'Desativar'}
                             </button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDeleteVaga(v.id, v.codigo)} disabled={v.ocupada}>Excluir</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => confirmarDeleteVaga(v.id, v.codigo)} disabled={v.ocupada}>Excluir</button>
                           </div>
                         </>
                       )}
@@ -668,7 +733,7 @@ export default function PainelOperador() {
           </div>
           {reservasPendentes.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">📅</div>
+              <div className="empty-state-icon"><Icon name="calendar" size={32} /></div>
               <h3>Nenhuma vaga agendada</h3>
               <p>As reservas feitas pelos motoristas aparecerão aqui.</p>
             </div>
@@ -699,7 +764,7 @@ export default function PainelOperador() {
                       <td style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{formatarDataHora(est.criadoEm)}</td>
                       <td className="hide-mobile" style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{formatarDataHora(est.previsaoChegada)}</td>
                       <td style={{ textAlign: 'right' }}>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleCancelarReserva(est.id, est.veiculo?.placa)} disabled={processandoEstadiaId === est.id}>
+                        <button className="btn btn-danger btn-sm" onClick={() => confirmarCancelarReserva(est.id, est.veiculo?.placa)} disabled={processandoEstadiaId === est.id}>
                           {processandoEstadiaId === est.id
                             ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Cancelando...</>
                             : 'Cancelar'}
@@ -719,7 +784,13 @@ export default function PainelOperador() {
         <div style={{ maxWidth: 520 }}>
           <div className="card" style={{ padding: 28 }}>
             <div style={{ textAlign: 'center', marginBottom: 28 }}>
-              <div style={{ fontSize: '3rem', marginBottom: 12 }}>🔍</div>
+              <div style={{
+                width: 64, height: 64, borderRadius: 16, margin: '0 auto 12px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--grad-night)', color: '#fff',
+              }}>
+                <Icon name="search" size={30} />
+              </div>
               <h2 style={{ fontWeight: 600, marginBottom: 8 }}>Validar código do motorista</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '.9rem', lineHeight: 1.6 }}>
                 Digite o código que o motorista apresenta no celular para confirmar a entrada.
@@ -728,15 +799,19 @@ export default function PainelOperador() {
             <form onSubmit={handleCheckin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div className="form-group">
                 <label className="form-label">Código de check-in</label>
-                <input className="form-control placa"
-                  style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '6px', height: 58 }}
-                  placeholder="XXXXXX" maxLength={8}
-                  value={codigoCheckin} onChange={e => setCodigoCheckin(e.target.value.toUpperCase())} required />
+                <input ref={checkinInputRef} className="form-control placa" autoFocus
+                  style={{ textAlign: 'center', fontSize: 'clamp(1.2rem, 8vw, 1.5rem)', letterSpacing: 'clamp(3px, 1.5vw, 6px)', height: 58 }}
+                  placeholder="XXXXXX" maxLength={6}
+                  value={codigoCheckin} onChange={e => setCodigoCheckin(e.target.value.toUpperCase())} required
+                  disabled={enviandoCheckin} />
+                <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  Confirma automaticamente ao completar os 6 caracteres
+                </p>
               </div>
               <button className="btn btn-primary btn-lg btn-full" type="submit" disabled={enviandoCheckin}>
                 {enviandoCheckin
                   ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Validando...</>
-                  : '✓ Confirmar check-in'}
+                  : <><Icon name="check" size={16} /> Confirmar check-in</>}
               </button>
             </form>
           </div>
@@ -754,7 +829,7 @@ export default function PainelOperador() {
           <h2 style={{ fontWeight: 600, marginBottom: 20, fontSize: '1rem' }}>Estadias encerradas</h2>
           {historico.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">📋</div>
+              <div className="empty-state-icon"><Icon name="list" size={32} /></div>
               <h3>Sem histórico ainda</h3>
               <p>As estadias encerradas aparecerão aqui</p>
             </div>
@@ -810,12 +885,12 @@ export default function PainelOperador() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Valor por hora padrão (R$)</label>
-                  <input className="form-control" type="number" step="0.01" min="0"
-                    value={cfgValorHora} onChange={e => setCfgValorHora(e.target.value)} required />
+                  <input className="form-control" type="text" inputMode="decimal"
+                    value={cfgValorHora} onChange={e => setCfgValorHora(e.target.value.replace(/[^0-9.,]/g, ''))} required />
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn btn-success" type="submit">💾 Salvar alterações</button>
+                <button className="btn btn-success" type="submit"><Icon name="save" size={15} /> Salvar alterações</button>
               </div>
             </form>
           </div>
@@ -830,10 +905,12 @@ export default function PainelOperador() {
               <div className="precos-grid">
                 {TIPOS_VEICULO.map(t => (
                   <div className="form-group" key={t.id}>
-                    <label className="form-label">{t.icon} {t.label} (R$/hora)</label>
-                    <input className="form-control" type="number" step="0.01" min="0"
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Icon name={t.icon} size={13} /> {t.label} (R$/hora)
+                    </label>
+                    <input className="form-control" type="text" inputMode="decimal"
                       placeholder={`Padrão: R$ ${Number(cfgValorHora || 0).toFixed(2)}`}
-                      value={precos[t.id]} onChange={e => setPrecos(p => ({ ...p, [t.id]: e.target.value }))} />
+                      value={precos[t.id]} onChange={e => setPrecos(p => ({ ...p, [t.id]: e.target.value.replace(/[^0-9.,]/g, '') }))} />
                   </div>
                 ))}
               </div>
@@ -841,7 +918,7 @@ export default function PainelOperador() {
                 <button className="btn btn-success" type="submit" disabled={salvandoPrecos}>
                   {salvandoPrecos
                     ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Salvando...</>
-                    : '💾 Salvar preços'}
+                    : <><Icon name="save" size={15} /> Salvar preços</>}
                 </button>
               </div>
             </form>
@@ -849,10 +926,15 @@ export default function PainelOperador() {
         </div>
       )}
 
-      <style>{`
-        .hide-mobile { }
-        @media (max-width: 600px) { .hide-mobile { display: none; } }
-      `}</style>
+      <ModalConfirm
+        aberto={!!confirmacao}
+        titulo={confirmacao?.titulo}
+        mensagem={confirmacao?.mensagem}
+        corConfirmar={confirmacao?.corConfirmar}
+        textoConfirmar={confirmacao?.textoConfirmar}
+        onConfirmar={confirmacao?.onConfirmar}
+        onCancelar={() => setConfirmacao(null)}
+      />
 
     </PainelLayout>
   );

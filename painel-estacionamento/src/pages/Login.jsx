@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getErroMsg } from '../utils/erro';
+import Icon from '../components/Icon';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -39,24 +40,29 @@ export default function Login() {
       {/* Painel esquerdo decorativo */}
       <div style={{
         flex: 1, display: 'none',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+        background: 'radial-gradient(circle at 30% 20%, rgba(224,41,155,.18), transparent 55%), radial-gradient(circle at 80% 80%, rgba(109,91,245,.22), transparent 50%), #0a0f1e',
         flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: 48, borderRight: '1px solid var(--border)',
       }} className="login-deco">
         <div style={{ textAlign: 'center', maxWidth: 360 }}>
-          <div style={{ fontSize: '4rem', marginBottom: 24 }}>🅿</div>
+          <div style={{
+            width: 72, height: 72, borderRadius: 18, margin: '0 auto 24px',
+            background: 'var(--grad-night)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+          }}>
+            <Icon name="parking" size={36} />
+          </div>
           <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: 16, letterSpacing: '-0.5px' }}>SmartPark</h2>
           <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '1.05rem' }}>
             Conectando motoristas a estacionamentos em tempo real. Sem filas, sem surpresas.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 40 }}>
             {[
-              { icon: '📍', label: 'Veja vagas disponíveis em tempo real' },
-              { icon: '📱', label: 'Reserve e confirme com um código' },
-              { icon: '💰', label: 'Acompanhe o valor da estadia ao vivo' },
+              { icon: 'pin', accent: 'var(--violet-light)', label: 'Veja vagas disponíveis em tempo real' },
+              { icon: 'ticket', accent: 'var(--magenta-light)', label: 'Reserve e confirme com um código' },
+              { icon: 'wallet', accent: 'var(--orange-light)', label: 'Acompanhe o valor da estadia ao vivo' },
             ].map((f, i) => (
               <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '12px 16px', borderRadius: 10, textAlign: 'left' }}>
-                <span style={{ fontSize: '1.3rem' }}>{f.icon}</span>
+                <span style={{ color: f.accent }}><Icon name={f.icon} size={20} /></span>
                 <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{f.label}</span>
               </div>
             ))}
@@ -79,8 +85,8 @@ export default function Login() {
           </div>
 
           {msgRedirect && (
-            <div style={{ background: 'var(--blue-glow)', border: '1px solid rgba(37,99,235,0.3)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: '0.875rem', color: 'var(--blue-light)' }}>
-              ℹ {msgRedirect}
+            <div style={{ background: 'var(--violet-glow)', border: '1px solid rgba(109,91,245,0.3)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: '0.875rem', color: 'var(--violet-light)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="bolt" size={15} /> {msgRedirect}
             </div>
           )}
 
@@ -102,7 +108,7 @@ export default function Login() {
 
           <p style={{ textAlign: 'center', marginTop: 24, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
             Não tem conta?{' '}
-            <Link to="/registro" style={{ color: 'var(--blue-light)', fontWeight: 600 }}>Criar conta</Link>
+            <Link to="/registro" style={{ color: 'var(--violet-light)', fontWeight: 600 }}>Criar conta</Link>
           </p>
         </div>
       </div>

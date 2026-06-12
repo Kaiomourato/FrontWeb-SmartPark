@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback } from 'react';
+import Icon from '../components/Icon';
 
 const ToastContext = createContext(null);
 
@@ -17,7 +18,8 @@ export function ToastProvider({ children }) {
     info:    (title, msg) => addToast('info',     title, msg),
   };
 
-  const icons = { success: '✓', error: '✕', info: 'ℹ' };
+  const icons = { success: 'check', error: 'close', info: 'info' };
+  const colors = { success: 'var(--green)', error: 'var(--red)', info: 'var(--text-secondary)' };
 
   return (
     <ToastContext.Provider value={toast}>
@@ -25,7 +27,7 @@ export function ToastProvider({ children }) {
       <div className="toast-container">
         {toasts.map(t => (
           <div key={t.id} className={`toast toast-${t.type}`}>
-            <span style={{ fontSize: '1rem', marginTop: '1px' }}>{icons[t.type]}</span>
+            <span style={{ marginTop: '1px', color: colors[t.type], flexShrink: 0 }}><Icon name={icons[t.type]} size={18} /></span>
             <div>
               <div className="toast-title">{t.title}</div>
               {t.message && <div className="toast-msg">{t.message}</div>}

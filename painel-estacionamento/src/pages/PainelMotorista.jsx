@@ -9,6 +9,8 @@ import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { getErroMsg } from '../utils/erro';
 import PainelLayout from '../components/PainelLayout';
+import ModalConfirm from '../components/ModalConfirm';
+import Icon from '../components/Icon';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
@@ -45,14 +47,14 @@ function MapResize({ ativo }) {
 const NAV = [{
   label: 'Motorista',
   items: [
-    { id: 'estadia',   icon: '⏱️', label: 'Minha estadia' },
-    { id: 'mapa',      icon: '📍', label: 'Buscar vagas' },
-    { id: 'veiculos',  icon: '🚗', label: 'Meus veículos' },
-    { id: 'historico', icon: '📋', label: 'Histórico' },
+    { id: 'estadia',   icon: <Icon name="clock" size={18} />,   label: 'Minha estadia' },
+    { id: 'mapa',      icon: <Icon name="pin" size={18} />,     label: 'Buscar vagas' },
+    { id: 'veiculos',  icon: <Icon name="car" size={18} />,     label: 'Meus veículos' },
+    { id: 'historico', icon: <Icon name="list" size={18} />,    label: 'Histórico' },
   ],
 }];
 
-const tiposIcon = { CARRO: '🚗', MOTO: '🏍️', CAMINHONETE: '🛻' };
+const tiposIcon = { CARRO: 'car', MOTO: 'moto', CAMINHONETE: 'truck' };
 
 /* ── Modal reserva ── */
 function ModalReserva({ est, vagas, veiculos, onConfirm, onClose, onIrParaVeiculos, enviando }) {
@@ -79,12 +81,14 @@ function ModalReserva({ est, vagas, veiculos, onConfirm, onClose, onIrParaVeicul
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Reservar vaga</h3>
-          <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose}>✕</button>
+          <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose}><Icon name="close" size={16} /></button>
         </div>
         <div className="modal-body">
           <div style={{ background: 'var(--bg-surface)', borderRadius: 10, padding: '14px 16px' }}>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>{est.nome}</div>
-            <div style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>📍 {est.endereco}</div>
+            <div style={{ fontSize: '.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Icon name="pin" size={13} /> {est.endereco}
+            </div>
             <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <span className="badge badge-green">{todasLivres.length} vagas livres</span>
               <span style={{ color: 'var(--green)', fontWeight: 700 }}>R$ {est.valorHora?.toFixed(2)}/h</span>
@@ -93,7 +97,7 @@ function ModalReserva({ est, vagas, veiculos, onConfirm, onClose, onIrParaVeicul
 
           {semVeiculos ? (
             <div className="empty-state" style={{ padding: '12px 0' }}>
-              <div className="empty-state-icon">🚗</div>
+              <div className="empty-state-icon"><Icon name="car" size={32} /></div>
               <h3>Nenhum veículo cadastrado</h3>
               <p>Cadastre um veículo para reservar uma vaga.</p>
               <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={onIrParaVeiculos}>
@@ -108,7 +112,7 @@ function ModalReserva({ est, vagas, veiculos, onConfirm, onClose, onIrParaVeicul
                 <select className="form-control" value={veiculoId} onChange={e => setVeiculoId(e.target.value)}>
                   {veiculos.map(v => (
                     <option key={v.id} value={v.id}>
-                      {tiposIcon[v.tipo] || '🚗'} {v.placa} · {v.modelo}
+                      {v.placa} · {v.modelo}
                     </option>
                   ))}
                 </select>
@@ -161,7 +165,7 @@ function ModalCodigo({ reserva, onClose }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Código de check-in</h3>
-          <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose}>✕</button>
+          <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose}><Icon name="close" size={16} /></button>
         </div>
         <div className="modal-body" style={{ textAlign: 'center' }}>
           <p style={{ color: 'var(--text-secondary)', fontSize: '.9rem' }}>
@@ -169,9 +173,10 @@ function ModalCodigo({ reserva, onClose }) {
           </p>
           <p style={{ fontWeight: 600 }}>{reserva.estacionamentoNome}</p>
           <div className="codigo-display">{reserva.codigo}</div>
-          <div style={{ background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.2)', borderRadius: 8, padding: '12px 16px', textAlign: 'left' }}>
+          <div style={{ background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.2)', borderRadius: 8, padding: '12px 16px', textAlign: 'left', display: 'flex', gap: 10 }}>
+            <span style={{ color: 'var(--green)', flexShrink: 0 }}><Icon name="check" size={16} /></span>
             <p style={{ fontSize: '.82rem', color: 'var(--green)', lineHeight: 1.65 }}>
-              ✓ Reserva confirmada para a <strong>Vaga {reserva.vagaCodigo}</strong><br />
+              Reserva confirmada para a <strong>Vaga {reserva.vagaCodigo}</strong><br />
               Dirija-se ao estacionamento e apresente o código acima.
             </p>
           </div>
@@ -204,6 +209,8 @@ export default function PainelMotorista() {
   const [enviandoReserva, setEnviandoReserva] = useState(false);
   const [salvandoVeiculo, setSalvandoVeiculo] = useState(false);
   const [removendoVeiculoId, setRemovendoVeiculoId] = useState(null);
+  const [confirmacao, setConfirmacao] = useState(null);
+  const [agora, setAgora] = useState(null);
 
   const toast = useToast();
 
@@ -242,6 +249,14 @@ export default function PainelMotorista() {
     const t = setInterval(buscarEstadia, 30000);
     return () => clearInterval(t);
   }, [buscarDados, buscarEstadia]);
+
+  // Relógio local de 1s para o valor "ao vivo" e a contagem até a próxima hora
+  // cheia — sem isso, o valor só mudaria a cada 30s (intervalo de buscarEstadia).
+  useEffect(() => {
+    setAgora(Date.now());
+    const t = setInterval(() => setAgora(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => { if (aba === 'historico') buscarHistorico(); }, [aba, buscarHistorico]);
 
@@ -304,7 +319,6 @@ export default function PainelMotorista() {
   };
 
   const handleRemoverVeiculo = async (id, placa) => {
-    if (!window.confirm(`Remover veículo ${placa}?`)) return;
     setRemovendoVeiculoId(id);
     try {
       await api.delete(`/veiculos/${id}`);
@@ -315,10 +329,29 @@ export default function PainelMotorista() {
     }
   };
 
+  const confirmarRemoverVeiculo = (id, placa) => {
+    setConfirmacao({
+      titulo: 'Remover veículo',
+      mensagem: `Remover o veículo ${placa} da sua frota?`,
+      corConfirmar: 'danger',
+      textoConfirmar: 'Remover',
+      onConfirmar: () => { setConfirmacao(null); handleRemoverVeiculo(id, placa); },
+    });
+  };
+
   const valorAtual = () => {
-    if (!estadiaAtiva?.entrada) return 0;
+    if (!estadiaAtiva?.entrada || !agora) return 0;
     const vh = estadiaAtiva.vaga?.estacionamento?.valorHora || 0;
-    return Math.max((Date.now() - new Date(estadiaAtiva.entrada).getTime()) / 3600000, 1) * vh;
+    return Math.max((agora - new Date(estadiaAtiva.entrada).getTime()) / 3600000, 1) * vh;
+  };
+
+  // Segundos restantes até a virada da próxima hora cheia de cobrança —
+  // ajuda o motorista a decidir "saio agora ou compensa ficar mais um pouco".
+  const segundosProximaHora = () => {
+    if (!estadiaAtiva?.entrada || !agora) return null;
+    const ms = agora - new Date(estadiaAtiva.entrada).getTime();
+    const restante = 3600000 - (ms % 3600000);
+    return Math.ceil(restante / 1000);
   };
 
   if (loadingInit) return (
@@ -373,17 +406,19 @@ export default function PainelMotorista() {
                     icon={livres > 0 ? mkVerde : mkVermelho}
                     eventHandlers={{ click: () => setSelecionado(est) }}>
                     <Popup>
-                      <div style={{ fontFamily: 'Inter,sans-serif', minWidth: 185 }}>
-                        <strong style={{ display: 'block', marginBottom: 4, color: '#0f172a' }}>{est.nome}</strong>
-                        <div style={{ fontSize: '.8rem', color: '#64748b', marginBottom: 8 }}>{est.endereco}</div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 4 }}>
-                          <span style={{ fontSize: '.8rem' }}>{livres > 0 ? `🟢 ${livres} livres` : '🔴 Lotado'}</span>
-                          <span style={{ fontSize: '.8rem', color: '#10b981', fontWeight: 700 }}>R$ {est.valorHora?.toFixed(2)}/h</span>
+                      <div className="map-popup">
+                        <strong className="map-popup-nome">{est.nome}</strong>
+                        <span className="map-popup-end"><Icon name="pin" size={13} /> {est.endereco}</span>
+                        <div className="map-popup-row">
+                          <span className={`map-popup-vagas ${livres > 0 ? 'livre' : 'lotado'}`}>
+                            <span className="live-dot" /> {livres > 0 ? `${livres} livres` : 'Lotado'}
+                          </span>
+                          <span className="map-popup-preco">R$ {est.valorHora?.toFixed(2)}/h</span>
                         </div>
                         <button
                           onClick={() => abrirReserva(est)}
                           disabled={livres === 0}
-                          style={{ width: '100%', padding: '7px', background: livres > 0 ? '#2563eb' : '#94a3b8', color: '#fff', border: 'none', borderRadius: 6, cursor: livres > 0 ? 'pointer' : 'not-allowed', fontWeight: 600, fontSize: '.85rem', fontFamily: 'Inter,sans-serif' }}>
+                          className={`map-popup-btn ${livres > 0 ? 'disponivel' : 'indisponivel'}`}>
                           {livres > 0 ? 'Reservar vaga' : 'Sem vagas'}
                         </button>
                       </div>
@@ -396,7 +431,7 @@ export default function PainelMotorista() {
 
           <div className="busca-list">
             <div className="busca-search-wrap">
-              <span className="busca-search-icon">🔍</span>
+              <span className="busca-search-icon"><Icon name="search" size={16} /></span>
               <input
                 className="form-control busca-search-input"
                 placeholder="Buscar por nome ou endereço..."
@@ -413,7 +448,7 @@ export default function PainelMotorista() {
 
             {filtrados.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-state-icon">🅿</div>
+                <div className="empty-state-icon"><Icon name="search" size={32} /></div>
                 <h3>Nenhum resultado</h3>
                 <p>Tente outro nome ou endereço</p>
               </div>
@@ -426,7 +461,7 @@ export default function PainelMotorista() {
                   <div className="busca-list-item-top">
                     <div className="busca-list-item-info">
                       <div className="busca-list-item-nome">{est.nome}</div>
-                      <div className="busca-list-item-end">📍 {est.endereco}</div>
+                      <div className="busca-list-item-end"><Icon name="pin" size={12} /> {est.endereco}</div>
                     </div>
                     <span className={`badge ${livres > 0 ? 'badge-green' : 'badge-red'}`}>
                       {livres > 0 ? `${livres} livres` : 'Lotado'}
@@ -459,7 +494,7 @@ export default function PainelMotorista() {
               <div className="estadia-wrap">
                 {estadiaAtiva?.pendente ? (
                   <div className="ticket">
-                    <div className="ticket-head" style={{ background: 'linear-gradient(135deg, var(--blue-dim), var(--blue-light))' }}>
+                    <div className="ticket-head" style={{ background: 'var(--grad-dusk)' }}>
                       <div className="ticket-head-label">Reserva pendente em</div>
                       <div className="ticket-head-name">{estadiaAtiva.vaga?.estacionamento?.nome || 'SmartPark'}</div>
                       <div className="ticket-head-addr">{estadiaAtiva.vaga?.estacionamento?.endereco}</div>
@@ -484,7 +519,7 @@ export default function PainelMotorista() {
                       </div>
                     </div>
                     <div className="ticket-foot" style={{ background: 'rgba(245,158,11,.08)', borderTopColor: 'rgba(245,158,11,.15)', color: 'var(--amber)' }}>
-                      ⏳ Aguardando check-in no estacionamento
+                      <Icon name="hourglass" size={15} /> Aguardando check-in no estacionamento
                     </div>
                   </div>
                 ) : estadiaAtiva ? (
@@ -497,7 +532,22 @@ export default function PainelMotorista() {
                       </div>
                       <div className="ticket-price">
                         <div className="ticket-price-label">Valor acumulado</div>
-                        <div className="ticket-price-value">R$ {valorAtual().toFixed(2)}</div>
+                        {(() => {
+                          const restante = segundosProximaHora();
+                          const proximaHora = restante !== null && restante <= 300; // últimos 5 min
+                          return (
+                            <>
+                              <div className={`ticket-price-value ${proximaHora ? 'proxima-hora' : ''}`}>
+                                R$ {valorAtual().toFixed(2)}
+                              </div>
+                              {proximaHora && (
+                                <div className="ticket-price-countdown">
+                                  <Icon name="hourglass" size={13} /> +R$ {estadiaAtiva.vaga?.estacionamento?.valorHora?.toFixed(2)} em {Math.floor(restante / 60)}:{String(restante % 60).padStart(2, '0')}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                         <div className="ticket-price-rate">
                           R$ {estadiaAtiva.vaga?.estacionamento?.valorHora?.toFixed(2)}/hora · cobrado por hora cheia
                         </div>
@@ -516,29 +566,35 @@ export default function PainelMotorista() {
                         </div>
                       </div>
                       <div className="ticket-time">
-                        <span className="ticket-time-label">🕐 Hora de entrada</span>
+                        <span className="ticket-time-label"><Icon name="clock" size={15} /> Hora de entrada</span>
                         <strong className="ticket-time-value">
                           {estadiaAtiva.entrada
                             ? new Date(estadiaAtiva.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
                             : '--:--'}
                         </strong>
                       </div>
-                      <div className="ticket-foot">🛡️ Estadia ativa e monitorada pelo SmartPark</div>
+                      <div className="ticket-foot"><Icon name="shield" size={15} /> Estadia ativa e monitorada pelo SmartPark</div>
                     </div>
-                    <p style={{ textAlign: 'center', marginTop: 12, fontSize: '.78rem', color: 'var(--text-muted)' }}>
-                      Valor atualizado a cada 30 segundos
+                    <p style={{ textAlign: 'center', marginTop: 12, fontSize: '.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <span className="live-dot" /> Valor ao vivo
                     </p>
                   </>
                 ) : (
                   <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: 16 }}>🅿</div>
+                    <div style={{
+                      width: 64, height: 64, borderRadius: 16, margin: '0 auto 16px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'var(--grad-night)', color: '#fff',
+                    }}>
+                      <Icon name="parking" size={32} />
+                    </div>
                     <h2 style={{ fontWeight: 600, marginBottom: 8 }}>Nenhuma estadia ativa</h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '.9rem', lineHeight: 1.6, marginBottom: 24 }}>
                       Você não está estacionado agora.<br />
                       Reserve uma vaga ou aguarde o operador registrar sua entrada.
                     </p>
                     <button className="btn btn-primary" onClick={() => setAba('mapa')}>
-                      📍 Buscar vagas
+                      <Icon name="pin" size={15} /> Buscar vagas
                     </button>
                   </div>
                 )}
@@ -553,7 +609,7 @@ export default function PainelMotorista() {
                     <h2 style={{ fontWeight: 600, fontSize: '1rem' }}>Minha frota</h2>
                     <button className={`btn btn-sm ${mostrarForm ? 'btn-ghost' : 'btn-primary'}`}
                       onClick={() => setMostrarForm(f => !f)}>
-                      {mostrarForm ? '✕ Cancelar' : '+ Adicionar veículo'}
+                      {mostrarForm ? <><Icon name="close" size={14} /> Cancelar</> : <><Icon name="plus" size={14} /> Adicionar veículo</>}
                     </button>
                   </div>
 
@@ -569,9 +625,9 @@ export default function PainelMotorista() {
                         <div className="form-group">
                           <label className="form-label">Tipo</label>
                           <select className="form-control" value={formV.tipo} onChange={e => setFormV(f => ({ ...f, tipo: e.target.value }))}>
-                            <option value="CARRO">🚗 Carro</option>
-                            <option value="MOTO">🏍️ Moto</option>
-                            <option value="CAMINHONETE">🛻 Caminhonete</option>
+                            <option value="CARRO">Carro</option>
+                            <option value="MOTO">Moto</option>
+                            <option value="CAMINHONETE">Caminhonete</option>
                           </select>
                         </div>
                         <div className="form-group span2">
@@ -595,7 +651,7 @@ export default function PainelMotorista() {
 
                   {veiculos.length === 0 ? (
                     <div className="empty-state">
-                      <div className="empty-state-icon">🚗</div>
+                      <div className="empty-state-icon"><Icon name="car" size={32} /></div>
                       <h3>Nenhum veículo cadastrado</h3>
                       <p>Adicione um veículo para fazer reservas</p>
                     </div>
@@ -604,7 +660,7 @@ export default function PainelMotorista() {
                       {veiculos.map(v => (
                         <div key={v.id} className="veiculo-item">
                           <div className="veiculo-item-left">
-                            <span style={{ fontSize: '1.6rem', flexShrink: 0 }}>{tiposIcon[v.tipo] || '🚗'}</span>
+                            <span className="veiculo-tipo-icon"><Icon name={tiposIcon[v.tipo] || 'car'} size={22} /></span>
                             <div style={{ minWidth: 0 }}>
                               <div className="placa-badge" style={{ marginBottom: 4 }}>{v.placa}</div>
                               <div style={{ fontSize: '.82rem', color: 'var(--text-secondary)' }}>{v.modelo} · {v.cor}</div>
@@ -612,7 +668,7 @@ export default function PainelMotorista() {
                             </div>
                           </div>
                           <button className="btn btn-ghost btn-sm"
-                            onClick={() => handleRemoverVeiculo(v.id, v.placa)}
+                            onClick={() => confirmarRemoverVeiculo(v.id, v.placa)}
                             disabled={removendoVeiculoId === v.id}
                             style={{ color: 'var(--red)', borderColor: 'var(--red)', flexShrink: 0 }}>
                             {removendoVeiculoId === v.id
@@ -633,7 +689,7 @@ export default function PainelMotorista() {
                 <h2 style={{ fontWeight: 600, marginBottom: 20, fontSize: '1rem' }}>Minhas estadias</h2>
                 {historicoEstadias.length === 0 ? (
                   <div className="empty-state">
-                    <div className="empty-state-icon">📋</div>
+                    <div className="empty-state-icon"><Icon name="list" size={32} /></div>
                     <h3>Nenhuma estadia ainda</h3>
                     <p>Seu histórico de estacionamentos aparecerá aqui</p>
                   </div>
@@ -696,16 +752,36 @@ export default function PainelMotorista() {
         <ModalCodigo reserva={modalCodigo} onClose={() => setModalCodigo(null)} />
       )}
 
+      <ModalConfirm
+        aberto={!!confirmacao}
+        titulo={confirmacao?.titulo}
+        mensagem={confirmacao?.mensagem}
+        corConfirmar={confirmacao?.corConfirmar}
+        textoConfirmar={confirmacao?.textoConfirmar}
+        onConfirmar={confirmacao?.onConfirmar}
+        onCancelar={() => setConfirmacao(null)}
+      />
+
+      {/* Atalho rápido: do mapa de busca direto pra "Minha estadia" — útil
+          quando o motorista já reservou e quer ver o código/ticket de novo. */}
+      {aba === 'mapa' && estadiaAtiva && (
+        <button className="fab" title="Minha estadia" onClick={() => setAba('estadia')}>
+          <Icon name="ticket" size={22} />
+        </button>
+      )}
+      {/* Atalho rápido: de qualquer aba sem estadia ativa, ir buscar vaga */}
+      {aba !== 'mapa' && !estadiaAtiva && (
+        <button className="fab" title="Buscar vagas" onClick={() => setAba('mapa')}>
+          <Icon name="pin" size={22} />
+        </button>
+      )}
+
       <style>{`
         .painel-abas-wrap { padding: 24px 28px; }
         .estadia-wrap { max-width: 520px; margin: 0 auto; }
-        .hide-mobile { }
         @media (max-width: 768px) {
           .painel-abas-wrap { padding: 16px; }
           .estadia-wrap { max-width: 100%; }
-        }
-        @media (max-width: 600px) {
-          .hide-mobile { display: none; }
         }
 
         /* ── Buscar vagas: mapa + lista ── */
@@ -714,17 +790,17 @@ export default function PainelMotorista() {
         .busca-list { width: 360px; flex-shrink: 0; background: var(--bg-surface); border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
 
         .busca-search-wrap { position: relative; padding: 14px 16px; border-bottom: 1px solid var(--border); }
-        .busca-search-icon { position: absolute; left: 28px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+        .busca-search-icon { position: absolute; left: 28px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; display: flex; }
         .busca-search-input { padding-left: 36px !important; background: var(--bg-card); }
 
         .busca-list-header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; }
         .busca-list-item { padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; border-left: 3px solid transparent; transition: background .12s, border-color .12s; }
         .busca-list-item:hover { background: var(--bg-card); }
-        .busca-list-item.selected { background: var(--blue-glow); border-left-color: var(--blue); }
+        .busca-list-item.selected { background: var(--violet-glow); border-left-color: var(--violet); }
         .busca-list-item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
         .busca-list-item-info { min-width: 0; }
         .busca-list-item-nome { font-weight: 600; font-size: .92rem; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .busca-list-item-end  { font-size: .78rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .busca-list-item-end  { font-size: .78rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
         .busca-list-item-mid  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .busca-list-item-price { font-weight: 700; color: var(--green); font-size: .97rem; }
 

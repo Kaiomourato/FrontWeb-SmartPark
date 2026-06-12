@@ -1,6 +1,7 @@
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
+import Icon from './Icon';
 
 export default function Sidebar({ aba, setAba, itens, titulo, subtitulo, open, onClose }) {
   const { user, logout } = useAuth();
@@ -25,7 +26,7 @@ export default function Sidebar({ aba, setAba, itens, titulo, subtitulo, open, o
         {/* Logo */}
         <div className="sidebar-logo">
           <div className="sidebar-logo-mark">
-            <div className="sidebar-logo-icon">🅿</div>
+            <div className="sidebar-logo-icon"><Icon name="parking" size={16} /></div>
             <span>SmartPark</span>
           </div>
           {subtitulo && (

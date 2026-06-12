@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { getErroMsg } from '../utils/erro';
+import Icon from '../components/Icon';
 
 export default function Registro() {
   const [tipo, setTipo] = useState('motorista'); // 'motorista' | 'estacionamento'
@@ -61,7 +62,7 @@ export default function Registro() {
         const estacResp = await api.post('/estacionamentos', {
           nome: nomeEstac,
           endereco,
-          valorHora: parseFloat(valorHora),
+          valorHora: parseFloat(valorHora.replace(',', '.')),
           latitude: latitude ? parseFloat(latitude) : null,
           longitude: longitude ? parseFloat(longitude) : null,
         });
@@ -94,7 +95,7 @@ export default function Registro() {
             ← Voltar
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <div className="sidebar-logo-icon">🅿</div>
+            <div className="sidebar-logo-icon"><Icon name="parking" size={16} /></div>
             <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>SmartPark</span>
           </div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-.5px', marginBottom: 6 }}>Criar conta</h1>
@@ -104,8 +105,8 @@ export default function Registro() {
         {/* Seletor de tipo */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
           {[
-            { id: 'motorista',     icon: '🚗', titulo: 'Sou motorista',       sub: 'Quero encontrar e reservar vagas' },
-            { id: 'estacionamento', icon: '🅿', titulo: 'Tenho estacionamento', sub: 'Quero gerenciar meu negócio' },
+            { id: 'motorista',     icon: 'car',     titulo: 'Sou motorista',       sub: 'Quero encontrar e reservar vagas' },
+            { id: 'estacionamento', icon: 'parking', titulo: 'Tenho estacionamento', sub: 'Quero gerenciar meu negócio' },
           ].map(op => (
             <button
               key={op.id}
@@ -113,13 +114,15 @@ export default function Registro() {
               onClick={() => setTipo(op.id)}
               style={{
                 padding: '16px 14px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
-                border: `2px solid ${tipo === op.id ? 'var(--blue)' : 'var(--border)'}`,
-                background: tipo === op.id ? 'var(--blue-glow)' : 'var(--bg-card)',
+                border: `2px solid ${tipo === op.id ? 'var(--violet)' : 'var(--border)'}`,
+                background: tipo === op.id ? 'var(--violet-glow)' : 'var(--bg-card)',
                 transition: 'all .15s',
               }}
             >
-              <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>{op.icon}</div>
-              <div style={{ fontWeight: 600, fontSize: '.9rem', color: tipo === op.id ? 'var(--blue-light)' : 'var(--text-primary)', marginBottom: 3 }}>
+              <div style={{ marginBottom: 8, color: tipo === op.id ? 'var(--violet-light)' : 'var(--text-secondary)' }}>
+                <Icon name={op.icon} size={24} />
+              </div>
+              <div style={{ fontWeight: 600, fontSize: '.9rem', color: tipo === op.id ? 'var(--violet-light)' : 'var(--text-primary)', marginBottom: 3 }}>
                 {op.titulo}
               </div>
               <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>{op.sub}</div>
@@ -151,8 +154,8 @@ export default function Registro() {
                     </div>
                     <div className="form-group">
                       <label className="form-label">Valor por hora padrão (R$)</label>
-                      <input className="form-control" type="number" step="0.01" min="0" placeholder="5.00"
-                        value={valorHora} onChange={e => setValorHora(e.target.value)} required />
+                      <input className="form-control" type="text" inputMode="decimal" placeholder="5.00"
+                        value={valorHora} onChange={e => setValorHora(e.target.value.replace(/[^0-9.,]/g, ''))} required />
                       <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
                         Você poderá definir preços diferentes por tipo de veículo depois, no painel.
                       </p>
@@ -163,7 +166,9 @@ export default function Registro() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <span className="form-label" style={{ margin: 0 }}>Localização no mapa</span>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={buscarLocalizacao} disabled={buscandoGeo}>
-                          {buscandoGeo ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Buscando...</> : '📍 Usar minha localização'}
+                          {buscandoGeo
+                            ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Buscando...</>
+                            : <><Icon name="compass" size={14} /> Usar minha localização</>}
                         </button>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Sidebar from './Sidebar';
+import Icon from './Icon';
 
 export default function PainelLayout({ aba, setAba, itens, subtitulo, topbarTitle, topbarSub, children, semPadding }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -12,8 +13,10 @@ export default function PainelLayout({ aba, setAba, itens, subtitulo, topbarTitl
       />
       <main className="painel-main">
         <div className="mobile-topbar">
-          <button className="hamburger" onClick={() => setSidebarOpen(true)}>☰</button>
-          <div style={{ fontWeight: 700, fontSize: '1rem' }}>🅿 SmartPark</div>
+          <button className="hamburger" onClick={() => setSidebarOpen(true)}><Icon name="menu" size={20} /></button>
+          <div style={{ fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="parking" size={18} /> SmartPark
+          </div>
           <div style={{ width: 32 }} />
         </div>
         <div className="painel-topbar">
