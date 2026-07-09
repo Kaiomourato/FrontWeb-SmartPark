@@ -23,3 +23,19 @@ export function SkeletonCard({ height = 220 }) {
     </div>
   );
 }
+
+// Linhas de tabela "fantasma" — usado nas páginas de listagem (Usuários, Vagas,
+// Pagamentos, Auditoria) enquanto a primeira página de resultados carrega.
+export function SkeletonTable({ linhas = 6, colunas = 4 }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {Array.from({ length: linhas }).map((_, i) => (
+        <div key={i} style={{ display: 'flex', gap: 16, padding: '13px 16px', border: '1px solid var(--border)', borderRadius: 8 }}>
+          {Array.from({ length: colunas }).map((_, j) => (
+            <Skeleton key={j} width={j === 0 ? '20%' : `${Math.floor(100 / colunas)}%`} height={14} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}

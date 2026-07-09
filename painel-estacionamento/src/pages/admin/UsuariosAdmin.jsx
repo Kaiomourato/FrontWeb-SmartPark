@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import Paginacao from '../../components/Paginacao';
 import Icon from '../../components/Icon';
+import EstadoErro from '../../components/EstadoErro';
+import { SkeletonTable } from '../../components/Skeleton';
+import { formatarDataHora as formatarDataHoraBase } from '../../utils/formatadores';
 
 const TIPO_INFO = {
   ADMIN: { label: 'Administrador', badge: 'badge-magenta' },
@@ -9,15 +12,13 @@ const TIPO_INFO = {
   MOTORISTA: { label: 'Motorista', badge: 'badge-gray' },
 };
 
-function formatarDataHora(data) {
-  if (!data) return '—';
-  return new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
+const formatarDataHora = (data) => formatarDataHoraBase(data, { comAno: true });
 
 // Usada tanto pela página "Usuários" (sem filtro) quanto "Operadores"
 // (tipoFixo="OPERADOR") — evita duplicar a listagem/paginação/busca.
 export default function UsuariosAdmin({ tipoFixo }) {
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState(false);
   const [pagina, setPagina] = useState(0);
   const [busca, setBusca] = useState('');
   const [buscaAplicada, setBuscaAplicada] = useState('');
@@ -28,13 +29,16 @@ export default function UsuariosAdmin({ tipoFixo }) {
 
   const carregar = useCallback(async () => {
     setLoading(true);
+    setErro(false);
     try {
       const { data } = await api.get('/admin/usuarios', {
         params: { role, busca: buscaAplicada || undefined, page: pagina, size: 15 },
       });
       setDados(data);
-    } catch { setDados({ content: [], totalPages: 0, totalElements: 0 }); }
-    finally { setLoading(false); }
+    } catch {
+      setDados({ content: [], totalPages: 0, totalElements: 0 });
+      setErro(true);
+    } finally { setLoading(false); }
   }, [role, buscaAplicada, pagina]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -79,7 +83,9 @@ export default function UsuariosAdmin({ tipoFixo }) {
         </div>
 
         {loading ? (
-          <div className="empty-state"><div className="spinner" /><span>Carregando...</span></div>
+          <SkeletonTable colunas={4} />
+        ) : erro ? (
+          <EstadoErro mensagem="Não foi possível carregar os usuários." onTentarNovamente={carregar} />
         ) : dados.content.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Icon name="users" size={32} /></div>

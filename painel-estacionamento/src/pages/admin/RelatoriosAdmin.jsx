@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import Icon from '../../components/Icon';
-
-function formatarMoeda(valor) {
-  return `R$ ${Number(valor || 0).toFixed(2)}`;
-}
+import EstadoErro from '../../components/EstadoErro';
+import { SkeletonCard } from '../../components/Skeleton';
+import { formatarMoeda } from '../../utils/formatadores';
 
 // Exportação client-side (sem endpoint novo): os relatórios aqui só reorganizam
 // em tabela dados que o /admin/dashboard já retorna.
@@ -54,22 +53,30 @@ function TabelaRelatorio({ titulo, colunas, linhas, chaveArquivo }) {
 
 export default function RelatoriosAdmin() {
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState(false);
   const [dashboard, setDashboard] = useState(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
+    setErro(false);
     try {
       const { data } = await api.get('/admin/dashboard');
       setDashboard(data);
-    } catch { setDashboard(null); }
-    finally { setLoading(false); }
+    } catch {
+      setDashboard(null);
+      setErro(true);
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
 
   if (loading) return (
-    <div className="empty-state"><div className="spinner" /><span>Carregando relatórios...</span></div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} height={160} />)}
+    </div>
   );
+
+  if (erro) return <EstadoErro mensagem="Não foi possível carregar os relatórios." onTentarNovamente={carregar} />;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

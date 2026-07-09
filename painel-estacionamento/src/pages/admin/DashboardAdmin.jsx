@@ -4,15 +4,8 @@ import BarChart from '../../components/BarChart';
 import MapaEstacionamentos from '../../components/admin/MapaEstacionamentos';
 import Skeleton, { SkeletonStatCard, SkeletonCard } from '../../components/Skeleton';
 import Icon from '../../components/Icon';
-
-function formatarMoeda(valor) {
-  return `R$ ${Number(valor || 0).toFixed(2)}`;
-}
-
-function formatarDataHora(data) {
-  if (!data) return '—';
-  return new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
+import EstadoErro from '../../components/EstadoErro';
+import { formatarMoeda, formatarDataHora } from '../../utils/formatadores';
 
 function Variacao({ percentual }) {
   if (percentual == null) return null;
@@ -27,6 +20,7 @@ function Variacao({ percentual }) {
 
 export default function DashboardAdmin() {
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState(false);
   const [estacionamentos, setEstacionamentos] = useState([]);
   const [estacionamentoFiltro, setEstacionamentoFiltro] = useState('');
   const [dashboard, setDashboard] = useState(null);
@@ -50,6 +44,9 @@ export default function DashboardAdmin() {
       api.get('/admin/estadias/ultimos-checkins', { params: paramsEstadias }),
       api.get('/admin/estadias/ultimos-checkouts', { params: paramsEstadias }),
     ]);
+    // O card/gráfico/mapa dependem todos de /admin/dashboard — se ele falhar, é um
+    // erro real (não "sem dados"). Os 3 widgets secundários já toleram falha isolada.
+    setErro(dashR.status !== 'fulfilled');
     setDashboard(dashR.status === 'fulfilled' ? dashR.value.data : null);
     setUsuariosRecentes(usuariosR.status === 'fulfilled' ? usuariosR.value.data : []);
     setUltimosCheckins(checkinsR.status === 'fulfilled' ? checkinsR.value.data : []);
@@ -62,6 +59,10 @@ export default function DashboardAdmin() {
   const cards = dashboard?.cards;
   const indicadores = dashboard?.indicadores;
   const financeiro = dashboard?.financeiro;
+
+  if (!loading && erro) {
+    return <EstadoErro mensagem="Não foi possível carregar o dashboard administrativo." onTentarNovamente={carregarTudo} />;
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -122,6 +123,9 @@ export default function DashboardAdmin() {
       </div>
 
       {/* ══ INDICADORES ══ */}
+      {/* "Mais movimentado/lucrativo" e "check-ins/check-outs hoje" ficam junto dos
+          gráficos equivalentes abaixo (linha 3) em vez de duplicados aqui — eram os
+          mesmos números soltos numa lista genérica, longe do contexto que os explica. */}
       <div>
         <h2 className="dashboard-section-title">Indicadores</h2>
         {loading ? (
@@ -141,28 +145,13 @@ export default function DashboardAdmin() {
               <span className="indicador-chip-value"><Variacao percentual={indicadores?.crescimentoFinanceiroPercentual} /></span>
             </div>
             <div className="indicador-chip">
-              <span className="indicador-chip-label"><Icon name="layers" size={13} /> Mais movimentado</span>
-              <span className="indicador-chip-value" style={{ fontSize: '.85rem' }}>{indicadores?.estacionamentoMaisMovimentado || '—'}</span>
-            </div>
-            <div className="indicador-chip">
-              <span className="indicador-chip-label"><Icon name="wallet" size={13} /> Mais lucrativo</span>
-              <span className="indicador-chip-value" style={{ fontSize: '.85rem' }}>{indicadores?.estacionamentoMaisLucrativo || '—'}</span>
-            </div>
-            <div className="indicador-chip">
-              <span className="indicador-chip-label"><Icon name="arrowUp" size={13} /> Check-ins hoje</span>
-              <span className="indicador-chip-value">{indicadores?.totalCheckinsHoje ?? 0}</span>
-            </div>
-            <div className="indicador-chip">
-              <span className="indicador-chip-label"><Icon name="arrowDown" size={13} /> Check-outs hoje</span>
-              <span className="indicador-chip-value">{indicadores?.totalCheckoutsHoje ?? 0}</span>
-            </div>
-            <div className="indicador-chip">
-              <span className="indicador-chip-label"><Icon name="list" size={13} /> Média diária de acessos</span>
-              <span className="indicador-chip-value">{indicadores?.mediaDiariaAcessos ?? 0}</span>
-            </div>
-            <div className="indicador-chip">
-              <span className="indicador-chip-label"><Icon name="clock" size={13} /> Pico de utilização</span>
-              <span className="indicador-chip-value">{indicadores?.picoUtilizacaoHora != null ? `${String(indicadores.picoUtilizacaoHora).padStart(2, '0')}h` : '—'}</span>
+              <span className="indicador-chip-label"><Icon name="list" size={13} /> Acessos ao sistema</span>
+              <span className="indicador-chip-value">
+                {indicadores?.mediaDiariaAcessos ?? 0}/dia
+                {indicadores?.picoUtilizacaoHora != null && (
+                  <span style={{ fontSize: '.7rem', color: 'var(--text-muted)', fontWeight: 500 }}> · pico {String(indicadores.picoUtilizacaoHora).padStart(2, '0')}h</span>
+                )}
+              </span>
             </div>
             <div className="indicador-chip">
               <span className="indicador-chip-label"><Icon name="ticket" size={13} /> Pagamentos no mês</span>
@@ -183,14 +172,20 @@ export default function DashboardAdmin() {
           {loading ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />) : (
             <>
               <div className="card" style={{ padding: 24 }}>
-                <h3 className="dashboard-chart-title">Check-ins por dia (7 dias)</h3>
+                <div className="dashboard-chart-head">
+                  <h3 className="dashboard-chart-title">Check-ins por dia (7 dias)</h3>
+                  <span className="badge badge-blue">{indicadores?.totalCheckinsHoje ?? 0} hoje</span>
+                </div>
                 {financeiro?.fluxoSemanal?.length > 0 ? (
                   <BarChart data={financeiro.fluxoSemanal} labelKey="data" series={[{ key: 'entradas', label: 'Check-ins', color: 'var(--blue-light)' }]} />
                 ) : <EmptyMini icon="arrowUp" />}
               </div>
 
               <div className="card" style={{ padding: 24 }}>
-                <h3 className="dashboard-chart-title">Check-outs por dia (7 dias)</h3>
+                <div className="dashboard-chart-head">
+                  <h3 className="dashboard-chart-title">Check-outs por dia (7 dias)</h3>
+                  <span className="badge badge-magenta">{indicadores?.totalCheckoutsHoje ?? 0} hoje</span>
+                </div>
                 {financeiro?.fluxoSemanal?.length > 0 ? (
                   <BarChart data={financeiro.fluxoSemanal} labelKey="data" series={[{ key: 'saidas', label: 'Check-outs', color: 'var(--magenta-light)' }]} />
                 ) : <EmptyMini icon="arrowDown" />}
@@ -219,6 +214,13 @@ export default function DashboardAdmin() {
 
               <div className="card" style={{ padding: 24 }}>
                 <h3 className="dashboard-chart-title">Top estacionamentos (por estadias)</h3>
+                {(indicadores?.estacionamentoMaisMovimentado || indicadores?.estacionamentoMaisLucrativo) && (
+                  <p style={{ fontSize: '.78rem', color: 'var(--text-secondary)', marginTop: -12, marginBottom: 16 }}>
+                    {indicadores?.estacionamentoMaisMovimentado && <>Mais movimentado: <strong style={{ color: 'var(--text-primary)' }}>{indicadores.estacionamentoMaisMovimentado}</strong></>}
+                    {indicadores?.estacionamentoMaisMovimentado && indicadores?.estacionamentoMaisLucrativo && ' · '}
+                    {indicadores?.estacionamentoMaisLucrativo && <>Mais lucrativo: <strong style={{ color: 'var(--text-primary)' }}>{indicadores.estacionamentoMaisLucrativo}</strong></>}
+                  </p>
+                )}
                 {dashboard?.topEstacionamentos?.length > 0 ? (
                   <BarChart data={dashboard.topEstacionamentos.slice(0, 8)} labelKey="nome" series={[{ key: 'totalEstadias', label: 'Estadias', color: 'var(--magenta-light)' }]} />
                 ) : <EmptyMini icon="layers" />}

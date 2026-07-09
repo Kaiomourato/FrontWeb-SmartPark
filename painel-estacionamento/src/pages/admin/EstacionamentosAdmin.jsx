@@ -2,19 +2,26 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import ProgressoOcupacao from '../../components/ProgressoOcupacao';
 import Icon from '../../components/Icon';
+import EstadoErro from '../../components/EstadoErro';
+import { SkeletonTable } from '../../components/Skeleton';
+import { formatarMoeda } from '../../utils/formatadores';
 
 export default function EstacionamentosAdmin() {
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState(false);
   const [estacionamentos, setEstacionamentos] = useState([]);
   const [busca, setBusca] = useState('');
 
   const carregar = useCallback(async () => {
     setLoading(true);
+    setErro(false);
     try {
       const { data } = await api.get('/estacionamentos');
       setEstacionamentos(data);
-    } catch { setEstacionamentos([]); }
-    finally { setLoading(false); }
+    } catch {
+      setEstacionamentos([]);
+      setErro(true);
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -40,7 +47,9 @@ export default function EstacionamentosAdmin() {
         </div>
 
         {loading ? (
-          <div className="empty-state"><div className="spinner" /><span>Carregando...</span></div>
+          <SkeletonTable colunas={5} />
+        ) : erro ? (
+          <EstadoErro mensagem="Não foi possível carregar os estacionamentos." onTentarNovamente={carregar} />
         ) : filtrados.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Icon name="layers" size={32} /></div>
@@ -71,7 +80,7 @@ export default function EstacionamentosAdmin() {
                       </td>
                       <td><span className="badge badge-blue">{ocupadas}/{total}</span></td>
                       <td><ProgressoOcupacao percentual={pct} /></td>
-                      <td style={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>R$ {Number(e.valorHora || 0).toFixed(2)}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>{formatarMoeda(e.valorHora)}</td>
                     </tr>
                   );
                 })}

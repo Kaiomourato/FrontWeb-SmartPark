@@ -2,6 +2,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import Icon from '../Icon';
+import { formatarMoeda } from '../../utils/formatadores';
 
 // Mesmo estilo de pin usado no mapa público (Home.jsx), mas com 3 faixas de cor
 // por ocupação em vez de 2 (livre/lotado) — combina com os limiares de
@@ -23,10 +24,6 @@ function pinPorOcupacao(pct) {
   if (pct >= 85) return mkVermelho;
   if (pct >= 60) return mkAmbar;
   return mkVerde;
-}
-
-function formatarMoeda(valor) {
-  return `R$ ${Number(valor || 0).toFixed(2)}`;
 }
 
 // `ranking` é a lista de RankingEstacionamentoDTO vinda de /admin/dashboard

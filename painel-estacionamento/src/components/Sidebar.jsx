@@ -3,7 +3,7 @@ import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import Icon from './Icon';
 
-export default function Sidebar({ aba, setAba, itens, titulo, subtitulo, open, onClose }) {
+export default function Sidebar({ aba, setAba, itens, subtitulo, open, onClose }) {
   const { user, logout } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();

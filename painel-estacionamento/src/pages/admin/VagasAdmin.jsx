@@ -2,11 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import Paginacao from '../../components/Paginacao';
 import Icon from '../../components/Icon';
+import EstadoErro from '../../components/EstadoErro';
+import { SkeletonTable } from '../../components/Skeleton';
 
 const TIPOS_VEICULO = { CARRO: 'Carro', MOTO: 'Moto', CAMINHONETE: 'Caminhonete' };
 
 export default function VagasAdmin() {
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState(false);
   const [estacionamentos, setEstacionamentos] = useState([]);
   const [estacionamentoFiltro, setEstacionamentoFiltro] = useState('');
   const [busca, setBusca] = useState('');
@@ -20,13 +23,16 @@ export default function VagasAdmin() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
+    setErro(false);
     try {
       const { data } = await api.get('/admin/vagas', {
         params: { estacionamentoId: estacionamentoFiltro || undefined, busca: buscaAplicada || undefined, page: pagina, size: 15 },
       });
       setDados(data);
-    } catch { setDados({ content: [], totalPages: 0, totalElements: 0 }); }
-    finally { setLoading(false); }
+    } catch {
+      setDados({ content: [], totalPages: 0, totalElements: 0 });
+      setErro(true);
+    } finally { setLoading(false); }
   }, [estacionamentoFiltro, buscaAplicada, pagina]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -62,7 +68,9 @@ export default function VagasAdmin() {
         </div>
 
         {loading ? (
-          <div className="empty-state"><div className="spinner" /><span>Carregando...</span></div>
+          <SkeletonTable colunas={4} />
+        ) : erro ? (
+          <EstadoErro mensagem="Não foi possível carregar as vagas." onTentarNovamente={carregar} />
         ) : dados.content.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Icon name="parking" size={32} /></div>

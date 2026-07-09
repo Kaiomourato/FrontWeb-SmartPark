@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import Paginacao from '../../components/Paginacao';
 import Icon from '../../components/Icon';
+import EstadoErro from '../../components/EstadoErro';
+import { SkeletonTable } from '../../components/Skeleton';
+import { useToast } from '../../context/ToastContext';
+import { formatarDataHora as formatarDataHoraBase } from '../../utils/formatadores';
 
 const ROLE_LABEL = { ADMIN: 'Administrador', OPERADOR: 'Operador', USER: 'Motorista' };
 
@@ -29,15 +33,14 @@ function badgeStatus(status) {
   return 'badge-green';
 }
 
-function formatarDataHora(data) {
-  if (!data) return '—';
-  return new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
+const formatarDataHora = (data) => formatarDataHoraBase(data, { comAno: true, comSegundos: true });
 
 const FILTROS_VAZIOS = { usuarioEmail: '', dataInicial: '', dataFinal: '', tipoEvento: '', rota: '', role: '', status: '' };
 
 export default function AuditoriaAdmin() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [tiposEvento, setTiposEvento] = useState([]);
   const [filtrosForm, setFiltrosForm] = useState(FILTROS_VAZIOS);
@@ -61,11 +64,14 @@ export default function AuditoriaAdmin() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
+    setErro(false);
     try {
       const { data } = await api.get('/admin/auditoria', { params: { ...paramsFiltro, page: pagina, size: 20 } });
       setDados(data);
-    } catch { setDados({ content: [], totalPages: 0, totalElements: 0 }); }
-    finally { setLoading(false); }
+    } catch {
+      setDados({ content: [], totalPages: 0, totalElements: 0 });
+      setErro(true);
+    } finally { setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrosAplicados, pagina]);
 
@@ -93,8 +99,9 @@ export default function AuditoriaAdmin() {
       a.download = 'auditoria.csv';
       a.click();
       URL.revokeObjectURL(url);
-    } catch { /* falha silenciosa: usuário pode tentar novamente */ }
-    finally { setExportando(false); }
+    } catch {
+      toast.error('Erro ao exportar', 'Não foi possível gerar o CSV. Tente novamente.');
+    } finally { setExportando(false); }
   };
 
   return (
@@ -172,7 +179,9 @@ export default function AuditoriaAdmin() {
         </div>
 
         {loading ? (
-          <div className="empty-state"><div className="spinner" /><span>Carregando...</span></div>
+          <SkeletonTable linhas={8} colunas={6} />
+        ) : erro ? (
+          <EstadoErro mensagem="Não foi possível carregar os registros de auditoria." onTentarNovamente={carregar} />
         ) : dados.content.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Icon name="list" size={32} /></div>

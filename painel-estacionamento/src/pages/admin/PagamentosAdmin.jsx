@@ -2,11 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import Paginacao from '../../components/Paginacao';
 import Icon from '../../components/Icon';
-
-function formatarDataHora(data) {
-  if (!data) return '—';
-  return new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
+import EstadoErro from '../../components/EstadoErro';
+import { SkeletonTable } from '../../components/Skeleton';
+import { formatarDataHora, formatarMoeda } from '../../utils/formatadores';
 
 function duracao(entrada, saida) {
   if (!entrada || !saida) return '—';
@@ -18,6 +16,7 @@ function duracao(entrada, saida) {
 
 export default function PagamentosAdmin() {
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState(false);
   const [estacionamentos, setEstacionamentos] = useState([]);
   const [estacionamentoFiltro, setEstacionamentoFiltro] = useState('');
   const [inicio, setInicio] = useState('');
@@ -31,6 +30,7 @@ export default function PagamentosAdmin() {
 
   const carregar = useCallback(async () => {
     setLoading(true);
+    setErro(false);
     try {
       const { data } = await api.get('/admin/pagamentos', {
         params: {
@@ -41,8 +41,10 @@ export default function PagamentosAdmin() {
         },
       });
       setDados(data);
-    } catch { setDados({ content: [], totalPages: 0, totalElements: 0 }); }
-    finally { setLoading(false); }
+    } catch {
+      setDados({ content: [], totalPages: 0, totalElements: 0 });
+      setErro(true);
+    } finally { setLoading(false); }
   }, [estacionamentoFiltro, inicio, fim, pagina]);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -77,13 +79,15 @@ export default function PagamentosAdmin() {
           <h2 style={{ fontWeight: 600, fontSize: '1rem' }}>Pagamentos</h2>
           {!loading && (
             <span style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>
-              {dados.totalElements} no total · R$ {totalPagina.toFixed(2)} nesta página
+              {dados.totalElements} no total · {formatarMoeda(totalPagina)} nesta página
             </span>
           )}
         </div>
 
         {loading ? (
-          <div className="empty-state"><div className="spinner" /><span>Carregando...</span></div>
+          <SkeletonTable colunas={6} />
+        ) : erro ? (
+          <EstadoErro mensagem="Não foi possível carregar os pagamentos." onTentarNovamente={carregar} />
         ) : dados.content.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Icon name="wallet" size={32} /></div>
@@ -112,7 +116,7 @@ export default function PagamentosAdmin() {
                       <td className="hide-mobile" style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{formatarDataHora(est.entrada)}</td>
                       <td style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{formatarDataHora(est.saida)}</td>
                       <td className="hide-mobile" style={{ color: 'var(--text-secondary)', fontSize: '.85rem' }}>{duracao(est.entrada, est.saida)}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--green)', fontWeight: 700 }}>R$ {(est.valor || 0).toFixed(2)}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--green)', fontWeight: 700 }}>{formatarMoeda(est.valor)}</td>
                     </tr>
                   ))}
                 </tbody>

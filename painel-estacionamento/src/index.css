@@ -369,6 +369,8 @@ select.form-control { cursor: pointer; }
 .stats-grid-6 { grid-template-columns: repeat(6, 1fr); margin-bottom: 0; }
 .dashboard-charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .dashboard-chart-title { font-weight: 600; margin-bottom: 18px; font-size: .92rem; }
+.dashboard-chart-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 18px; }
+.dashboard-chart-head .dashboard-chart-title { margin-bottom: 0; }
 .dashboard-tables-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 
 .indicadores-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
@@ -527,11 +529,20 @@ select.form-control { cursor: pointer; }
 .fab:active { transform: scale(.93); }
 
 /* ─────────────────────────────────────────
+   RESPONSIVIDADE — notebooks (≤ 1280px)
+───────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .stats-grid-6 { grid-template-columns: repeat(3, 1fr); }
+  .dashboard-tables-grid { grid-template-columns: repeat(2, 1fr); }
+  .indicadores-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ─────────────────────────────────────────
    RESPONSIVIDADE — tablets (≤ 1024px)
 ───────────────────────────────────────── */
 @media (max-width: 1024px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .stats-grid-6 { grid-template-columns: repeat(3, 1fr); }
+  .stats-grid-6 { grid-template-columns: repeat(2, 1fr); }
   .dashboard-charts-grid, .dashboard-tables-grid { grid-template-columns: 1fr; }
   .home-body  { grid-template-columns: 1fr 320px; }
   .home-list-wrap { width: 320px; }
