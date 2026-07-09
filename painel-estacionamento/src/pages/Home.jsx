@@ -7,6 +7,7 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { destinoPorRole } from '../utils/destino';
 import { getErroMsg } from '../utils/erro';
 import AppIcon from '../components/Icon';
 
@@ -107,7 +108,7 @@ export default function Home() {
             <>
               <span className="home-nav-email">{user.email}</span>
               <button className="btn btn-primary btn-sm"
-                onClick={() => navigate(user.role === 'USER' ? '/painel-motorista' : '/painel-operador')}>
+                onClick={() => navigate(destinoPorRole(user.role))}>
                 Meu painel
               </button>
             </>

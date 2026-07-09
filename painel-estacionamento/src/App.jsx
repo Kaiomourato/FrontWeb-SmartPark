@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { destinoPorRole } from './utils/destino';
 import { ToastProvider } from './context/ToastContext';
 import ConexaoBanner from './components/ConexaoBanner';
 import Home from './pages/Home';
@@ -9,13 +10,19 @@ import PainelOperador from './pages/PainelOperador';
 import PainelMotorista from './pages/PainelMotorista';
 import PainelAdmin from './pages/PainelAdmin';
 
+const ROTA_POR_PAPEL = { admin: '/painel-admin', operador: '/painel-operador', motorista: '/painel-motorista' };
+
+// Cada rota declara o papel que espera ("admin" | "operador" | "motorista"). Se a
+// role do usuário logado não corresponder a essa rota, ele é mandado para o painel
+// que de fato pertence à sua role — nunca para um fallback genérico "operador".
 function RotaPrivada({ children, role }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
-  if (role === 'operador' && user.role === 'USER') return <Navigate to="/painel-motorista" replace />;
-  if (role === 'motorista' && (user.role === 'ADMIN' || user.role === 'OPERADOR')) return <Navigate to="/painel-operador" replace />;
-  if (role === 'admin' && user.role !== 'ADMIN') return <Navigate to="/painel-operador" replace />;
+  const rotaEsperada = ROTA_POR_PAPEL[role];
+  if (rotaEsperada && destinoPorRole(user.role) !== rotaEsperada) {
+    return <Navigate to={destinoPorRole(user.role)} replace />;
+  }
   return children;
 }
 

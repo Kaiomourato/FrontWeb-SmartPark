@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { destinoPorRole } from '../utils/destino';
 import { useToast } from '../context/ToastContext';
 import { getErroMsg } from '../utils/erro';
 import Icon from '../components/Icon';
@@ -24,8 +25,7 @@ export default function Login() {
       const { data } = await api.post('/auth/login', { email, senha });
       login(data);
       toast.success('Login realizado!', `Bem-vindo(a) de volta.`);
-      const destino = location.state?.destino ||
-        (data.role === 'USER' ? '/painel-motorista' : '/painel-operador');
+      const destino = location.state?.destino || destinoPorRole(data.role);
       navigate(destino, { replace: true });
     } catch (err) {
       toast.error('Falha no login', getErroMsg(err, 'E-mail ou senha incorretos.'));

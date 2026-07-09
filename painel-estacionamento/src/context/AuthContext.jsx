@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -21,13 +21,16 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    // Best-effort: só existe para gerar o registro de auditoria de logout.
+    // Não bloqueia o logout local caso o token já tenha expirado ou a rede falhe.
+    api.post('/auth/logout').catch(() => {});
     localStorage.removeItem('sp_user');
     setUser(null);
   };
 
-  const isOperador = user?.role === 'ADMIN' || user?.role === 'OPERADOR';
-  const isMotorista = user?.role === 'USER';
   const isAdmin = user?.role === 'ADMIN';
+  const isOperador = user?.role === 'OPERADOR';
+  const isMotorista = user?.role === 'USER';
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isOperador, isMotorista, isAdmin, loading }}>
