@@ -31,6 +31,8 @@ const PATHS = {
 
   // Diversos
   arrowUp: 'M12 19V5M5 12l7-7 7 7',
+  arrowDown: 'M12 5v14M19 12l-7 7-7-7',
+  users: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 9v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M17 8a3 3 0 1 1 0 6m4 6v-1a5 5 0 0 0-3.5-4.8',
   plus: 'M12 5v14M5 12h14',
   bolt: 'M13 2 4 14h6l-1 8 9-12h-6z',
   shield: 'M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z',
