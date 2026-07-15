@@ -29,16 +29,21 @@ function pinPorOcupacao(pct) {
 // `ranking` é a lista de RankingEstacionamentoDTO vinda de /admin/dashboard
 // (ocupação e faturamento); `estacionamentos` vem de /estacionamentos (lat/lng).
 // Junta os dois por id para não precisar de um endpoint novo só para o mapa.
-export default function MapaEstacionamentos({ estacionamentos, ranking, height = 420 }) {
+export default function MapaEstacionamentos({ estacionamentos, ranking, height }) {
   const rankingPorId = new Map((ranking || []).map(r => [r.estacionamentoId, r]));
   const comCoordenadas = (estacionamentos || []).filter(e => e.latitude && e.longitude);
   const centro = comCoordenadas.length > 0
     ? [comCoordenadas[0].latitude, comCoordenadas[0].longitude]
     : [-15.78, -47.93];
 
+  // Sem `height` explícito, usa a classe CSS responsiva (mapa-estacionamentos em
+  // index.css) em vez de um px fixo — que não encolhia em telas pequenas.
+  const style = height != null ? { height } : undefined;
+  const className = height != null ? 'empty-state' : 'empty-state mapa-estacionamentos';
+
   if (comCoordenadas.length === 0) {
     return (
-      <div className="empty-state" style={{ height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div className={className} style={{ ...style, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div className="empty-state-icon"><Icon name="pin" size={32} /></div>
         <h3>Nenhum estacionamento com localização</h3>
         <p>Cadastre latitude/longitude para vê-los no mapa.</p>
@@ -47,7 +52,10 @@ export default function MapaEstacionamentos({ estacionamentos, ranking, height =
   }
 
   return (
-    <div style={{ height, borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+    <div
+      className={height != null ? undefined : 'mapa-estacionamentos'}
+      style={{ ...style, borderRadius: 'var(--radius-md)', overflow: 'hidden' }}
+    >
       <MapContainer center={centro} zoom={5} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

@@ -14,7 +14,7 @@ function tempoRelativo(criadoEm) {
 }
 
 export default function NotificationBell() {
-  const { notificacoes, naoLidas, buscarLista, marcarComoLida, marcarTodasComoLidas } = useNotifications();
+  const { notificacoes, naoLidas, buscarLista, marcarComoLida, marcarTodasComoLidas, permissaoPush, ativarPush } = useNotifications();
   const [aberto, setAberto] = useState(false);
   const wrapRef = useRef(null);
 
@@ -54,6 +54,12 @@ export default function NotificationBell() {
               </button>
             )}
           </div>
+
+          {permissaoPush === 'default' && (
+            <button className="notification-ativar-push" onClick={ativarPush}>
+              <Icon name="bell" size={14} /> Ativar notificações no navegador
+            </button>
+          )}
 
           {notificacoes.length === 0 ? (
             <div className="empty-state">

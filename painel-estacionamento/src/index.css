@@ -217,6 +217,13 @@ select.form-control { cursor: pointer; }
 .notification-item-msg { font-size: .8rem; color: var(--text-secondary); margin-top: 2px; }
 .notification-item-time { font-size: .7rem; color: var(--text-muted); margin-top: 4px; }
 .notification-dropdown .empty-state { padding: 32px 16px; }
+.notification-ativar-push {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 10px 16px; border: none; border-bottom: 1px solid var(--border);
+  background: var(--violet-glow); color: var(--violet-light);
+  font-size: .8rem; font-weight: 600; font-family: var(--font); cursor: pointer; text-align: left;
+}
+.notification-ativar-push:hover { background: rgba(109,91,245,.25); }
 
 /* ─────────────────────────────────────────
    CÓDIGO DE CHECK-IN — estilo "ticket de estacionamento"
@@ -549,6 +556,11 @@ select.form-control { cursor: pointer; }
 .fab:active { transform: scale(.93); }
 
 /* ─────────────────────────────────────────
+   MAPA ADMIN — altura responsiva (ver MapaEstacionamentos.jsx)
+───────────────────────────────────────── */
+.mapa-estacionamentos { height: 420px; }
+
+/* ─────────────────────────────────────────
    RESPONSIVIDADE — notebooks (≤ 1280px)
 ───────────────────────────────────────── */
 @media (max-width: 1280px) {
@@ -568,6 +580,7 @@ select.form-control { cursor: pointer; }
   .home-list-wrap { width: 320px; }
   .config-grid { grid-template-columns: 1fr; }
   .config-grid .span2 { grid-column: 1; }
+  .mapa-estacionamentos { height: 340px; }
 }
 
 /* ─────────────────────────────────────────
@@ -640,6 +653,9 @@ select.form-control { cursor: pointer; }
   /* Gráficos */
   .bar-chart-label { font-size: .62rem; }
   .bar-chart-bar { max-width: 14px; }
+
+  /* Mapa admin */
+  .mapa-estacionamentos { height: 260px; }
 
   /* Toast no centro-baixo no mobile */
   .toast-container { right: 12px; left: 12px; bottom: 16px; }
