@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { destinoPorRole } from './utils/destino';
 import { ToastProvider } from './context/ToastContext';
+import { NotificationProvider } from './context/NotificationContext';
 import ConexaoBanner from './components/ConexaoBanner';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -44,10 +45,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <ConexaoBanner />
-          <AppRoutes />
-        </ToastProvider>
+        <NotificationProvider>
+          <ToastProvider>
+            <ConexaoBanner />
+            <AppRoutes />
+          </ToastProvider>
+        </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>
   );

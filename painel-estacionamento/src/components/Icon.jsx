@@ -45,6 +45,7 @@ const PATHS = {
   save: 'M5 4h11l3 3v13H5V4zm3 0v5h8V4M8 13h8v7H8z',
   barChart: 'M4 20V10m6 10V4m6 16v-7',
   trendUp: 'M4 16l5-5 4 4 7-7M14 8h6v6',
+  bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0',
 };
 
 /**

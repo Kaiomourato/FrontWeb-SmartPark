@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
+import NotificationBell from './NotificationBell';
 
 export default function PainelLayout({ aba, setAba, itens, subtitulo, topbarTitle, topbarSub, children, semPadding }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -17,13 +18,14 @@ export default function PainelLayout({ aba, setAba, itens, subtitulo, topbarTitl
           <div style={{ fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Icon name="parking" size={18} /> SmartPark
           </div>
-          <div style={{ width: 32 }} />
+          <NotificationBell />
         </div>
         <div className="painel-topbar">
           <div>
             <div className="painel-topbar-title">{topbarTitle}</div>
             {topbarSub && <div className="painel-topbar-sub">{topbarSub}</div>}
           </div>
+          <NotificationBell />
         </div>
         <div className={semPadding ? 'painel-body painel-body-map' : 'painel-body'}>
           {children}
