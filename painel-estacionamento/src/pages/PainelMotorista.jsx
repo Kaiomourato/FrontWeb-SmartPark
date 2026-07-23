@@ -201,6 +201,12 @@ export default function PainelMotorista() {
   const [vagasEstac, setVagasEstac] = useState([]);
   const [loadingInit, setLoadingInit] = useState(true);
   const [filtroMapa, setFiltroMapa] = useState('');
+  const [somenteLivres, setSomenteLivres] = useState(false);
+  const [precoMax, setPrecoMax] = useState('');
+  const [tipoVeiculoFiltro, setTipoVeiculoFiltro] = useState('');
+  const [ordenacao, setOrdenacao] = useState('');
+  const [somenteFavoritos, setSomenteFavoritos] = useState(false);
+  const [favoritoIds, setFavoritoIds] = useState(new Set());
   const [selecionado, setSelecionado] = useState(null);
   const [modalReserva, setModalReserva] = useState(null);
   const [modalCodigo, setModalCodigo] = useState(null);
@@ -224,9 +230,12 @@ export default function PainelMotorista() {
 
   const buscarDados = useCallback(async () => {
     try {
-      const [vR, eR] = await Promise.all([api.get('/veiculos/meus'), api.get('/estacionamentos')]);
+      const [vR, eR, fR] = await Promise.all([
+        api.get('/veiculos/meus'), api.get('/estacionamentos'), api.get('/favoritos/meus'),
+      ]);
       setVeiculos(vR.data);
       setEstacionamentos(eR.data);
+      setFavoritoIds(new Set(fR.data.map(e => e.id)));
     } catch {}
   }, []);
 
@@ -259,6 +268,36 @@ export default function PainelMotorista() {
   }, []);
 
   useEffect(() => { if (aba === 'historico') buscarHistorico(); }, [aba, buscarHistorico]);
+
+  const toggleFavorito = async (estId) => {
+    const jaFavorito = favoritoIds.has(estId);
+    setFavoritoIds(prev => {
+      const next = new Set(prev);
+      if (jaFavorito) next.delete(estId); else next.add(estId);
+      return next;
+    });
+    try {
+      if (jaFavorito) await api.delete(`/favoritos/${estId}`);
+      else await api.post(`/favoritos/${estId}`);
+    } catch {
+      // Reverte a mudança otimista se a chamada falhar
+      setFavoritoIds(prev => {
+        const next = new Set(prev);
+        if (jaFavorito) next.add(estId); else next.delete(estId);
+        return next;
+      });
+      toast.error('Erro', 'Não foi possível atualizar o favorito.');
+    }
+  };
+
+  const limparFiltros = () => {
+    setFiltroMapa('');
+    setSomenteLivres(false);
+    setPrecoMax('');
+    setTipoVeiculoFiltro('');
+    setOrdenacao('');
+    setSomenteFavoritos(false);
+  };
 
   const abrirReserva = async (est) => {
     try {
@@ -370,11 +409,36 @@ export default function PainelMotorista() {
   };
 
   const vagasLivres = (est) => Math.max(0, (est.vagasTotais ?? 0) - (est.vagasOcupadas ?? 0));
+
+  // Distância em km via fórmula de Haversine, só calculável com a localização do usuário
+  const distanciaKm = (est) => {
+    if (!userPos) return null;
+    const [lat1, lon1] = userPos;
+    const R = 6371;
+    const dLat = (est.latitude - lat1) * Math.PI / 180;
+    const dLon = (est.longitude - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(est.latitude * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
   const estacComCoord = estacionamentos.filter(e => e.latitude && e.longitude);
-  const filtrados = estacComCoord.filter(e =>
-    e.nome?.toLowerCase().includes(filtroMapa.toLowerCase()) ||
-    e.endereco?.toLowerCase().includes(filtroMapa.toLowerCase())
-  );
+  const filtrosAtivos = !!filtroMapa || somenteLivres || precoMax !== '' || !!tipoVeiculoFiltro || somenteFavoritos;
+
+  const filtrados = estacComCoord
+    .filter(e =>
+      e.nome?.toLowerCase().includes(filtroMapa.toLowerCase()) ||
+      e.endereco?.toLowerCase().includes(filtroMapa.toLowerCase()))
+    .filter(e => !somenteLivres || vagasLivres(e) > 0)
+    .filter(e => precoMax === '' || (e.valorHora ?? 0) <= Number(precoMax))
+    .filter(e => !tipoVeiculoFiltro || (e.tiposAceitos ?? []).includes(tipoVeiculoFiltro))
+    .filter(e => !somenteFavoritos || favoritoIds.has(e.id))
+    .sort((a, b) => {
+      if (ordenacao === 'preco') return (a.valorHora ?? 0) - (b.valorHora ?? 0);
+      if (ordenacao === 'vagas') return vagasLivres(b) - vagasLivres(a);
+      if (ordenacao === 'distancia' && userPos) return distanciaKm(a) - distanciaKm(b);
+      return 0;
+    });
 
   return (
     <>
@@ -407,7 +471,18 @@ export default function PainelMotorista() {
                     eventHandlers={{ click: () => setSelecionado(est) }}>
                     <Popup>
                       <div className="map-popup">
-                        <strong className="map-popup-nome">{est.nome}</strong>
+                        <div className="map-popup-head">
+                          <strong className="map-popup-nome">{est.nome}</strong>
+                          <button
+                            type="button"
+                            className={`btn-favorito ${favoritoIds.has(est.id) ? 'ativo' : ''}`}
+                            onClick={e => { e.stopPropagation(); toggleFavorito(est.id); }}
+                            aria-pressed={favoritoIds.has(est.id)}
+                            aria-label={favoritoIds.has(est.id) ? `Remover ${est.nome} dos favoritos` : `Favoritar ${est.nome}`}
+                            title={favoritoIds.has(est.id) ? 'Remover dos favoritos' : 'Favoritar'}>
+                            <Icon name="star" size={16} filled={favoritoIds.has(est.id)} />
+                          </button>
+                        </div>
                         <span className="map-popup-end"><Icon name="pin" size={13} /> {est.endereco}</span>
                         <div className="map-popup-row">
                           <span className={`map-popup-vagas ${livres > 0 ? 'livre' : 'lotado'}`}>
@@ -437,8 +512,64 @@ export default function PainelMotorista() {
                 placeholder="Buscar por nome ou endereço..."
                 value={filtroMapa}
                 onChange={e => setFiltroMapa(e.target.value)}
+                aria-label="Buscar por nome ou endereço"
               />
             </div>
+
+            <div className="busca-filtros">
+              <div className="busca-filtros-row">
+                <div className="form-group busca-filtro-preco">
+                  <label className="form-label" htmlFor="filtro-preco-max">Preço máx. (R$/h)</label>
+                  <input
+                    id="filtro-preco-max"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    inputMode="decimal"
+                    className="form-control"
+                    placeholder="Sem limite"
+                    value={precoMax}
+                    onChange={e => setPrecoMax(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="filtro-tipo-veiculo">Veículo</label>
+                  <select id="filtro-tipo-veiculo" className="form-control" value={tipoVeiculoFiltro}
+                    onChange={e => setTipoVeiculoFiltro(e.target.value)}>
+                    <option value="">Qualquer tipo</option>
+                    <option value="CARRO">Carro</option>
+                    <option value="MOTO">Moto</option>
+                    <option value="CAMINHONETE">Caminhonete</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="filtro-ordenacao">Ordenar por</label>
+                  <select id="filtro-ordenacao" className="form-control" value={ordenacao}
+                    onChange={e => setOrdenacao(e.target.value)}>
+                    <option value="">Padrão</option>
+                    <option value="preco">Menor preço</option>
+                    <option value="vagas">Mais vagas livres</option>
+                    {userPos && <option value="distancia">Mais próximos</option>}
+                  </select>
+                </div>
+              </div>
+              <div className="busca-filtros-row busca-filtros-toggles">
+                <label className="busca-filtro-check">
+                  <input type="checkbox" checked={somenteLivres} onChange={e => setSomenteLivres(e.target.checked)} />
+                  Só com vagas livres
+                </label>
+                <label className="busca-filtro-check">
+                  <input type="checkbox" checked={somenteFavoritos} onChange={e => setSomenteFavoritos(e.target.checked)} />
+                  Só favoritos
+                </label>
+                {filtrosAtivos && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={limparFiltros}>
+                    <Icon name="close" size={13} /> Limpar filtros
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="busca-list-header">
               <span style={{ fontWeight: 600, fontSize: '.9rem' }}>
                 {filtrados.length} {filtrados.length === 1 ? 'estacionamento' : 'estacionamentos'}
@@ -450,7 +581,12 @@ export default function PainelMotorista() {
               <div className="empty-state">
                 <div className="empty-state-icon"><Icon name="search" size={32} /></div>
                 <h3>Nenhum resultado</h3>
-                <p>Tente outro nome ou endereço</p>
+                <p>{filtrosAtivos ? 'Tente ajustar a busca ou os filtros aplicados' : 'Tente outro nome ou endereço'}</p>
+                {filtrosAtivos && (
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={limparFiltros}>
+                    Limpar filtros
+                  </button>
+                )}
               </div>
             ) : filtrados.map(est => {
               const livres = vagasLivres(est);
@@ -463,9 +599,20 @@ export default function PainelMotorista() {
                       <div className="busca-list-item-nome">{est.nome}</div>
                       <div className="busca-list-item-end"><Icon name="pin" size={12} /> {est.endereco}</div>
                     </div>
-                    <span className={`badge ${livres > 0 ? 'badge-green' : 'badge-red'}`}>
-                      {livres > 0 ? `${livres} livres` : 'Lotado'}
-                    </span>
+                    <div className="busca-list-item-actions">
+                      <button
+                        type="button"
+                        className={`btn-favorito ${favoritoIds.has(est.id) ? 'ativo' : ''}`}
+                        onClick={e => { e.stopPropagation(); toggleFavorito(est.id); }}
+                        aria-pressed={favoritoIds.has(est.id)}
+                        aria-label={favoritoIds.has(est.id) ? `Remover ${est.nome} dos favoritos` : `Favoritar ${est.nome}`}
+                        title={favoritoIds.has(est.id) ? 'Remover dos favoritos' : 'Favoritar'}>
+                        <Icon name="star" size={16} filled={favoritoIds.has(est.id)} />
+                      </button>
+                      <span className={`badge ${livres > 0 ? 'badge-green' : 'badge-red'}`}>
+                        {livres > 0 ? `${livres} livres` : 'Lotado'}
+                      </span>
+                    </div>
                   </div>
                   <div className="busca-list-item-mid">
                     <span style={{ fontSize: '.85rem', color: 'var(--text-secondary)' }}>{est.vagasTotais} vagas</span>
@@ -793,6 +940,14 @@ export default function PainelMotorista() {
         .busca-search-icon { position: absolute; left: 28px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; display: flex; }
         .busca-search-input { padding-left: 36px !important; background: var(--bg-card); }
 
+        .busca-filtros { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+        .busca-filtros-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .busca-filtros-row .form-group { flex: 1 1 110px; gap: 4px; }
+        .busca-filtros-row .form-control { background: var(--bg-card); }
+        .busca-filtros-toggles { align-items: center; gap: 16px; row-gap: 8px; }
+        .busca-filtro-check { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--text-secondary); cursor: pointer; user-select: none; }
+        .busca-filtro-check input { accent-color: var(--violet); width: 15px; height: 15px; cursor: pointer; }
+
         .busca-list-header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; }
         .busca-list-item { padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; border-left: 3px solid transparent; transition: background .12s, border-color .12s; }
         .busca-list-item:hover { background: var(--bg-card); }
@@ -803,6 +958,11 @@ export default function PainelMotorista() {
         .busca-list-item-end  { font-size: .78rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
         .busca-list-item-mid  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .busca-list-item-price { font-weight: 700; color: var(--green); font-size: .97rem; }
+        .busca-list-item-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+        .btn-favorito { background: transparent; border: none; padding: 4px; margin: -4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 6px; transition: color .15s; }
+        .btn-favorito:hover { color: var(--amber); }
+        .btn-favorito.ativo { color: var(--amber); }
 
         @media (max-width: 768px) {
           .busca-layout { flex-direction: column; }

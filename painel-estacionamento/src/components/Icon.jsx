@@ -46,6 +46,7 @@ const PATHS = {
   barChart: 'M4 20V10m6 10V4m6 16v-7',
   trendUp: 'M4 16l5-5 4 4 7-7M14 8h6v6',
   bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0',
+  star: 'M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z',
 };
 
 /**
@@ -53,10 +54,10 @@ const PATHS = {
  * genéricos por traços consistentes com a paleta e o tema "ticket de
  * estacionamento".
  */
-export default function Icon({ name, size = 18, strokeWidth = 2, className = '', style }) {
+export default function Icon({ name, size = 18, strokeWidth = 2, className = '', style, filled: filledProp }) {
   const d = PATHS[name];
   if (!d) return null;
-  const filled = name === 'parking' || name === 'car' || name === 'moto' || name === 'truck' || name === 'bolt';
+  const filled = filledProp ?? (name === 'parking' || name === 'car' || name === 'moto' || name === 'truck' || name === 'bolt');
   return (
     <svg
       className={`icon icon-${name} ${className}`}
